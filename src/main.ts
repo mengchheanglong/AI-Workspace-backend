@@ -1,0 +1,37 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { ConfigService } from '@nestjs/config';
+import { SwaggerModule } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
+import { AppModule } from './app.module';
+import { configureApp } from './common/configure-app';
+import { Environment } from './config/environment';
+import { createOpenApiDocument } from './openapi';
+
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
+  app.useBodyParser('json', { limit: '1mb' });
+  app.useBodyParser('urlencoded', { limit: '1mb', extended: false });
+  configureApp(app);
+  app.enableShutdownHooks();
+  const config = app.get(ConfigService<Environment, true>);
+  if (config.get('SWAGGER_ENABLED', { infer: true })) {
+    SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));
+  }
+  const server = await app.listen(
+    config.get('PORT', { infer: true }),
+    config.get('HOST', { infer: true }),
+  );
+  server.requestTimeout = 30000;
+  server.headersTimeout = 15000;
+}
+
+void bootstrap().catch(() => {
+  // Avoid dumping configuration, DB connection strings, or raw provider errors.
+  process.stderr.write(
+    'Application startup failed. Check configuration and dependency availability.\n',
+  );
+  process.exitCode = 1;
+});

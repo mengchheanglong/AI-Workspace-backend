@@ -1,0 +1,42 @@
+name: Backend CI
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.2-pg17-bookworm
+        env:
+          POSTGRES_USER: ai_workspace_test
+          POSTGRES_PASSWORD: local_test_only
+          POSTGRES_DB: ai_workspace_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ai_workspace_test -d ai_workspace_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://ai_workspace_test:local_test_only@127.0.0.1:5432/ai_workspace_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:e2e
+      - run: pnpm test:integration
+      - run: pnpm build
+      - run: pnpm openapi:generate
+      - run: git diff --exit-code -- docs/openapi.json
+      - run: docker build -t ai-workspace-backend:ci .
