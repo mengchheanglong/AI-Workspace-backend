@@ -855,22 +855,22 @@ Credentials, spending authorization, repository installation access, and real-da
 
 Status values: NOT_STARTED, IN_PROGRESS, BLOCKED, DONE. A DONE entry needs verification evidence. Maintain finer task checklists in issues or milestone notes once implementation starts.
 
-| Milestone      | Status      | Evidence / remaining work                                                                 |
-| -------------- | ----------- | ----------------------------------------------------------------------------------------- |
-| Planning guide | DONE        | Both supplied PDFs extracted/read; source coverage and implementation defaults documented |
+| Milestone      | Status      | Evidence / remaining work                                                                                                                                                                              |
+| -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Planning guide | DONE        | Both supplied PDFs extracted/read; source coverage and implementation defaults documented                                                                                                              |
 | P1-00          | DONE        | NestJS 11 scaffold, validated config, health routes, OpenAPI, migrations, pgvector, Docker, CI. All checks pass: format, lint, typecheck, unit (10), e2e (5), integration (1), build, openapi:generate |
-| P1-01          | NOT_STARTED | Accounts/sessions pending                                                                 |
-| P1-02          | NOT_STARTED | Projects/policies pending                                                                 |
-| P1-03          | NOT_STARTED | Requirements/decisions pending                                                            |
-| P1-04          | NOT_STARTED | Tasks/meetings pending                                                                    |
-| P1-05          | NOT_STARTED | Documents/storage pending                                                                 |
-| P1-06          | NOT_STARTED | Dashboard/search/frontend integration pending                                             |
-| P1-07          | NOT_STARTED | Phase 1 verification pending                                                              |
-| P2-01          | NOT_STARTED | Processing/indexing pending                                                               |
-| P2-02          | NOT_STARTED | Retrieval/chat pending                                                                    |
-| P2-03          | NOT_STARTED | Modes/meeting analysis/actions pending                                                    |
-| P2-04          | NOT_STARTED | GitHub integration pending                                                                |
-| P2-05          | NOT_STARTED | Final validation/deployment pending                                                       |
+| P1-01          | DONE        | User/Session entities, migration, Argon2id, opaque cookie sessions, CSRF guard, roles guard, auth & users endpoints. Verified: format, lint, typecheck, 26 unit tests, 13 e2e tests, build, openapi:generate. (Frontend integration pending) |
+| P1-02          | NOT_STARTED | Projects/policies pending                                                                                                                                                                              |
+| P1-03          | NOT_STARTED | Requirements/decisions pending                                                                                                                                                                         |
+| P1-04          | NOT_STARTED | Tasks/meetings pending                                                                                                                                                                                 |
+| P1-05          | NOT_STARTED | Documents/storage pending                                                                                                                                                                              |
+| P1-06          | NOT_STARTED | Dashboard/search/frontend integration pending                                                                                                                                                          |
+| P1-07          | NOT_STARTED | Phase 1 verification pending                                                                                                                                                                           |
+| P2-01          | NOT_STARTED | Processing/indexing pending                                                                                                                                                                            |
+| P2-02          | NOT_STARTED | Retrieval/chat pending                                                                                                                                                                                 |
+| P2-03          | NOT_STARTED | Modes/meeting analysis/actions pending                                                                                                                                                                 |
+| P2-04          | NOT_STARTED | GitHub integration pending                                                                                                                                                                             |
+| P2-05          | NOT_STARTED | Final validation/deployment pending                                                                                                                                                                    |
 
 Milestone note template:
 

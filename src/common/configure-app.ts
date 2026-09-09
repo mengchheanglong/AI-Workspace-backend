@@ -3,6 +3,7 @@ import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/c
 import { ConfigService } from '@nestjs/config';
 import type { ValidationError } from 'class-validator';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import type { Request, Response, NextFunction } from 'express';
 import { Environment } from '../config/environment';
 import { ApiExceptionFilter } from './filters/api-exception.filter';
@@ -23,6 +24,7 @@ function validationDetails(
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService<Environment, true>);
   app.setGlobalPrefix('api/v1');
+  app.use(cookieParser());
   app.use((_: Request, response: Response, next: NextFunction) => {
     response.setHeader('x-request-id', randomUUID());
     next();

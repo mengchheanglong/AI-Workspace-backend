@@ -39,7 +39,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     }
     response.status(status).json({
       error: {
-        code: codes[status] ?? 'INTERNAL_ERROR',
+        code: (typeof record.code === 'string' ? record.code : codes[status]) ?? 'INTERNAL_ERROR',
         message:
           status >= 500
             ? 'Service temporarily unavailable.'
