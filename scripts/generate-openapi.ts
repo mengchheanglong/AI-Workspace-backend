@@ -14,8 +14,17 @@ import { ProjectsService } from '../src/modules/projects/projects.service';
 import { ProjectMembersController } from '../src/modules/projects/project-members.controller';
 import { ProjectMembersService } from '../src/modules/projects/project-members.service';
 import { AuditService } from '../src/modules/audit/audit.service';
+import { RequirementsController } from '../src/modules/requirements/requirements.controller';
+import { RequirementsService } from '../src/modules/requirements/requirements.service';
+import { DecisionsController } from '../src/modules/decisions/decisions.controller';
+import { DecisionsService } from '../src/modules/decisions/decisions.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ProjectMember } from '../src/modules/projects/entities/project-member.entity';
+import { Requirement } from '../src/modules/requirements/entities/requirement.entity';
+import { RequirementRevision } from '../src/modules/requirements/entities/requirement-revision.entity';
+import { Decision } from '../src/modules/decisions/entities/decision.entity';
+import { DecisionRevision } from '../src/modules/decisions/entities/decision-revision.entity';
+import { Project } from '../src/modules/projects/entities/project.entity';
 import { createOpenApiDocument } from '../src/openapi';
 
 // Offline metadata-only app: no database connection, .env, provider call, or listening socket.
@@ -27,6 +36,8 @@ import { createOpenApiDocument } from '../src/openapi';
     UsersController,
     ProjectsController,
     ProjectMembersController,
+    RequirementsController,
+    DecisionsController,
   ],
   providers: [
     { provide: HealthService, useValue: {} },
@@ -42,7 +53,14 @@ import { createOpenApiDocument } from '../src/openapi';
     { provide: ProjectsService, useValue: {} },
     { provide: ProjectMembersService, useValue: {} },
     { provide: AuditService, useValue: {} },
+    { provide: RequirementsService, useValue: {} },
+    { provide: DecisionsService, useValue: {} },
     { provide: getRepositoryToken(ProjectMember), useValue: {} },
+    { provide: getRepositoryToken(Requirement), useValue: {} },
+    { provide: getRepositoryToken(RequirementRevision), useValue: {} },
+    { provide: getRepositoryToken(Decision), useValue: {} },
+    { provide: getRepositoryToken(DecisionRevision), useValue: {} },
+    { provide: getRepositoryToken(Project), useValue: {} },
   ],
 })
 class OpenApiModule {}

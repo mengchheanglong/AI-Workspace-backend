@@ -885,6 +885,715 @@
           "Project Members"
         ]
       }
+    },
+    "/api/v1/projects/{projectId}/requirements": {
+      "get": {
+        "operationId": "RequirementsController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "APPROVED",
+                "IN_PROGRESS",
+                "DONE",
+                "ARCHIVED"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "URGENT"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "example": "authentication",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "number",
+              "type": "string",
+              "enum": [
+                "number",
+                "title",
+                "status",
+                "priority",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requirements returned"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List project requirements with filters and pagination",
+        "tags": [
+          "Requirements"
+        ]
+      },
+      "post": {
+        "operationId": "RequirementsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequirementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Requirement created"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Create a new requirement",
+        "tags": [
+          "Requirements"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/requirements/{requirementId}": {
+      "get": {
+        "operationId": "RequirementsController_getById",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requirement returned"
+          },
+          "404": {
+            "description": "Requirement not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get requirement details",
+        "tags": [
+          "Requirements"
+        ]
+      },
+      "patch": {
+        "operationId": "RequirementsController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRequirementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requirement updated"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Update a requirement",
+        "tags": [
+          "Requirements"
+        ]
+      },
+      "delete": {
+        "operationId": "RequirementsController_softDelete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Requirement deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Soft-delete a requirement",
+        "tags": [
+          "Requirements"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/requirements/{requirementId}/revisions": {
+      "get": {
+        "operationId": "RequirementsController_listRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revisions returned"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List revision history for a requirement",
+        "tags": [
+          "Requirements"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/requirements/{requirementId}/tasks": {
+      "get": {
+        "operationId": "RequirementsController_listLinkedTasks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Linked tasks returned"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List tasks linked to this requirement (placeholder until P1-04)",
+        "tags": [
+          "Requirements"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/decisions": {
+      "get": {
+        "operationId": "DecisionsController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PROPOSED",
+                "ACCEPTED",
+                "SUPERSEDED"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "example": "postgresql",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "number",
+              "type": "string",
+              "enum": [
+                "number",
+                "title",
+                "status",
+                "decidedAt",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decisions returned"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List project decisions with filters and pagination",
+        "tags": [
+          "Decisions"
+        ]
+      },
+      "post": {
+        "operationId": "DecisionsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Decision created"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Create a new decision",
+        "tags": [
+          "Decisions"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/decisions/{decisionId}": {
+      "get": {
+        "operationId": "DecisionsController_getById",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decision returned"
+          },
+          "404": {
+            "description": "Decision not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get decision details",
+        "tags": [
+          "Decisions"
+        ]
+      },
+      "patch": {
+        "operationId": "DecisionsController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision updated"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Update a decision",
+        "tags": [
+          "Decisions"
+        ]
+      },
+      "delete": {
+        "operationId": "DecisionsController_softDelete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Decision deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Soft-delete a decision",
+        "tags": [
+          "Decisions"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/decisions/{decisionId}/revisions": {
+      "get": {
+        "operationId": "DecisionsController_listRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revisions returned"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List revision history for a decision",
+        "tags": [
+          "Decisions"
+        ]
+      }
     }
   },
   "info": {
@@ -1138,6 +1847,158 @@
         },
         "required": [
           "targetUserId"
+        ]
+      },
+      "CreateRequirementDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "User authentication flow",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "example": "Implement OAuth2 based authentication"
+          },
+          "acceptanceCriteria": {
+            "type": "string",
+            "example": "Users can log in with email and password"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "default": "MEDIUM"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "UpdateRequirementDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "example": 1,
+            "description": "Current version for optimistic locking"
+          },
+          "title": {
+            "type": "string",
+            "example": "Updated authentication flow",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "example": "Updated description"
+          },
+          "acceptanceCriteria": {
+            "type": "string",
+            "example": "Updated acceptance criteria"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "APPROVED",
+              "IN_PROGRESS",
+              "DONE",
+              "ARCHIVED"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "CreateDecisionDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Use PostgreSQL for primary storage",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "decisionText": {
+            "type": "string",
+            "example": "We will use PostgreSQL as the primary database"
+          },
+          "rationale": {
+            "type": "string",
+            "example": "PostgreSQL supports pgvector for embeddings"
+          },
+          "requirementId": {
+            "type": "string",
+            "description": "Link to a same-project requirement"
+          },
+          "supersedesDecisionId": {
+            "type": "string",
+            "description": "ID of an existing decision this supersedes"
+          }
+        },
+        "required": [
+          "title",
+          "decisionText"
+        ]
+      },
+      "UpdateDecisionDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "example": 1,
+            "description": "Current version for optimistic locking"
+          },
+          "title": {
+            "type": "string",
+            "example": "Updated title",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "decisionText": {
+            "type": "string",
+            "example": "Updated decision text"
+          },
+          "rationale": {
+            "type": "string",
+            "example": "Updated rationale"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PROPOSED",
+              "ACCEPTED",
+              "SUPERSEDED"
+            ]
+          },
+          "requirementId": {
+            "type": "string",
+            "description": "Link to a same-project requirement"
+          },
+          "supersedesDecisionId": {
+            "type": "string",
+            "description": "ID of an existing decision this supersedes"
+          }
+        },
+        "required": [
+          "version"
         ]
       }
     }
