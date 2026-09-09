@@ -3,11 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { SessionService } from '../../src/modules/auth/services/session.service';
 import { Session } from '../../src/modules/auth/entities/session.entity';
 import { ProfessionalRole, SystemRole, User } from '../../src/modules/users/entities/user.entity';
+import { Environment } from '../../src/config/environment';
 
 describe('SessionService', () => {
   let service: SessionService;
   let repo: jest.Mocked<Repository<Session>>;
-  let config: jest.Mocked<ConfigService<any, true>>;
+  let config: jest.Mocked<ConfigService<Environment, true>>;
 
   const mockUser: User = {
     id: 'user-1',
@@ -38,7 +39,7 @@ describe('SessionService', () => {
         if (key === 'NODE_ENV') return 'development';
         return undefined;
       }),
-    } as unknown as jest.Mocked<ConfigService<any, true>>;
+    } as unknown as jest.Mocked<ConfigService<Environment, true>>;
 
     service = new SessionService(repo, config);
   });
