@@ -9,12 +9,25 @@ import { AuthService } from '../src/modules/auth/auth.service';
 import { SessionService } from '../src/modules/auth/services/session.service';
 import { UsersController } from '../src/modules/users/users.controller';
 import { UsersService } from '../src/modules/users/users.service';
+import { ProjectsController } from '../src/modules/projects/projects.controller';
+import { ProjectsService } from '../src/modules/projects/projects.service';
+import { ProjectMembersController } from '../src/modules/projects/project-members.controller';
+import { ProjectMembersService } from '../src/modules/projects/project-members.service';
+import { AuditService } from '../src/modules/audit/audit.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { ProjectMember } from '../src/modules/projects/entities/project-member.entity';
 import { createOpenApiDocument } from '../src/openapi';
 
 // Offline metadata-only app: no database connection, .env, provider call, or listening socket.
 // Register new public controllers here as the API grows, and test path coverage.
 @Module({
-  controllers: [HealthController, AuthController, UsersController],
+  controllers: [
+    HealthController,
+    AuthController,
+    UsersController,
+    ProjectsController,
+    ProjectMembersController,
+  ],
   providers: [
     { provide: HealthService, useValue: {} },
     { provide: AuthService, useValue: {} },
@@ -26,6 +39,10 @@ import { createOpenApiDocument } from '../src/openapi';
       },
     },
     { provide: UsersService, useValue: {} },
+    { provide: ProjectsService, useValue: {} },
+    { provide: ProjectMembersService, useValue: {} },
+    { provide: AuditService, useValue: {} },
+    { provide: getRepositoryToken(ProjectMember), useValue: {} },
   ],
 })
 class OpenApiModule {}
