@@ -9,6 +9,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { RequirementsModule } from './modules/requirements/requirements.module';
+import { DecisionsModule } from './modules/decisions/decisions.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { ProjectsModule } from './modules/projects/projects.module';
     AuthModule,
     AuditModule,
     ProjectsModule,
+    RequirementsModule,
+    DecisionsModule,
   ],
 })
 export class AppModule {}
