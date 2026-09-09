@@ -104,7 +104,14 @@ describe('Auth and Users API (E2E)', () => {
     createQueryBuilder: jest.fn(() => {
       let targetUserId: string | undefined;
       let excludedId: string | undefined;
-      const builder: any = {
+      interface MockBuilder {
+        update: () => MockBuilder;
+        set: () => MockBuilder;
+        where: (clause: string, params?: { userId?: string }) => MockBuilder;
+        andWhere: (clause: string, params?: { exceptSessionId?: string }) => MockBuilder;
+        execute: () => Promise<void>;
+      }
+      const builder: MockBuilder = {
         update: jest.fn(() => builder),
         set: jest.fn(() => builder),
         where: jest.fn((_clause: string, params?: { userId?: string }) => {
