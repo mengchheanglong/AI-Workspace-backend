@@ -22,6 +22,10 @@ const schema = z
     STORAGE_DRIVER: z.literal('local').default('local'),
     STORAGE_LOCAL_ROOT: z.string().min(1).default('./var/uploads'),
     MAX_UPLOAD_BYTES: z.coerce.number().int().positive().max(20971520).default(20971520),
+    SESSION_IDLE_HOURS: z.coerce.number().int().min(1).default(8),
+    SESSION_ABSOLUTE_DAYS: z.coerce.number().int().min(1).default(7),
+    INITIAL_ADMIN_EMAIL: z.string().email().optional(),
+    INITIAL_ADMIN_PASSWORD: z.string().min(8).optional(),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
