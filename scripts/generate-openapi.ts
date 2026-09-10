@@ -18,12 +18,20 @@ import { RequirementsController } from '../src/modules/requirements/requirements
 import { RequirementsService } from '../src/modules/requirements/requirements.service';
 import { DecisionsController } from '../src/modules/decisions/decisions.controller';
 import { DecisionsService } from '../src/modules/decisions/decisions.service';
+import { TasksController } from '../src/modules/tasks/tasks.controller';
+import { TasksService } from '../src/modules/tasks/tasks.service';
+import { MeetingsController } from '../src/modules/meetings/meetings.controller';
+import { MeetingsService } from '../src/modules/meetings/meetings.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ProjectMember } from '../src/modules/projects/entities/project-member.entity';
 import { Requirement } from '../src/modules/requirements/entities/requirement.entity';
 import { RequirementRevision } from '../src/modules/requirements/entities/requirement-revision.entity';
 import { Decision } from '../src/modules/decisions/entities/decision.entity';
 import { DecisionRevision } from '../src/modules/decisions/entities/decision-revision.entity';
+import { Task } from '../src/modules/tasks/entities/task.entity';
+import { Meeting } from '../src/modules/meetings/entities/meeting.entity';
+import { MeetingAttendee } from '../src/modules/meetings/entities/meeting-attendee.entity';
+import { User } from '../src/modules/users/entities/user.entity';
 import { Project } from '../src/modules/projects/entities/project.entity';
 import { createOpenApiDocument } from '../src/openapi';
 
@@ -38,6 +46,8 @@ import { createOpenApiDocument } from '../src/openapi';
     ProjectMembersController,
     RequirementsController,
     DecisionsController,
+    TasksController,
+    MeetingsController,
   ],
   providers: [
     { provide: HealthService, useValue: {} },
@@ -55,11 +65,17 @@ import { createOpenApiDocument } from '../src/openapi';
     { provide: AuditService, useValue: {} },
     { provide: RequirementsService, useValue: {} },
     { provide: DecisionsService, useValue: {} },
+    { provide: TasksService, useValue: {} },
+    { provide: MeetingsService, useValue: {} },
     { provide: getRepositoryToken(ProjectMember), useValue: {} },
     { provide: getRepositoryToken(Requirement), useValue: {} },
     { provide: getRepositoryToken(RequirementRevision), useValue: {} },
     { provide: getRepositoryToken(Decision), useValue: {} },
     { provide: getRepositoryToken(DecisionRevision), useValue: {} },
+    { provide: getRepositoryToken(Task), useValue: {} },
+    { provide: getRepositoryToken(Meeting), useValue: {} },
+    { provide: getRepositoryToken(MeetingAttendee), useValue: {} },
+    { provide: getRepositoryToken(User), useValue: {} },
     { provide: getRepositoryToken(Project), useValue: {} },
   ],
 })

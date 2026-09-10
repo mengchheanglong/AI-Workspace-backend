@@ -7,9 +7,13 @@ import { ProjectMember } from '../projects/entities/project-member.entity';
 import { RequirementsService } from './requirements.service';
 import { RequirementsController } from './requirements.controller';
 import { ProjectPolicyGuard } from '../../common/guards/project-policy.guard';
+import { TasksModule } from '../tasks/tasks.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Requirement, RequirementRevision, Project, ProjectMember])],
+  imports: [
+    TypeOrmModule.forFeature([Requirement, RequirementRevision, Project, ProjectMember]),
+    TasksModule,
+  ],
   controllers: [RequirementsController],
   providers: [RequirementsService, ProjectPolicyGuard],
   exports: [RequirementsService, TypeOrmModule],

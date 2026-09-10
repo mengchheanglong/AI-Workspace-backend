@@ -26,6 +26,8 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirementsService } from './requirements.service';
+import { TasksService } from '../tasks/tasks.service';
+import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { CreateRequirementDto } from './dto/create-requirement.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { ListRequirementsQueryDto } from './dto/list-requirements-query.dto';
@@ -45,7 +47,10 @@ import { ProjectMember, ProjectRole } from '../projects/entities/project-member.
 @Controller('projects/:projectId/requirements')
 @UseGuards(SessionAuthGuard, CsrfGuard, ProjectPolicyGuard)
 export class RequirementsController {
-  constructor(private readonly requirementsService: RequirementsService) {}
+  constructor(
+    private readonly requirementsService: RequirementsService,
+    private readonly tasksService: TasksService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List project requirements with filters and pagination' })
@@ -158,13 +163,20 @@ export class RequirementsController {
   }
 
   @Get(':requirementId/tasks')
-  @ApiOperation({ summary: 'List tasks linked to this requirement (placeholder until P1-04)' })
+  @ApiOperation({ summary: 'List tasks linked to this requirement' })
   @ApiOkResponse({ description: 'Linked tasks returned' })
   async listLinkedTasks(
-    @Param('projectId', ParseUUIDPipe) _projectId: string,
-    @Param('requirementId', ParseUUIDPipe) _requirementId: string,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Param('requirementId', ParseUUIDPipe) requirementId: string,
   ) {
-    // Returns empty until Task entity exists in P1-04
-    return { data: [], meta: { page: 1, pageSize: 20, total: 0 } };
+    await this.requirementsService.getById(projectId, requirementId);
+    const [tasks, projectKey] = await Promise.all([
+      this.tasksService.listForRequirement(projectId, requirementId),
+      this.requirementsService.getProjectKey(projectId),
+    ]);
+    return {
+      data: tasks.map((t) => TaskResponseDto.fromEntity(t, projectKey)),
+      meta: { page: 1, pageSize: tasks.length, total: tasks.length },
+    };
   }
 }
