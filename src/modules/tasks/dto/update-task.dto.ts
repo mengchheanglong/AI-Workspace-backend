@@ -1,0 +1,70 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+import { TaskStatus, Priority } from '../entities/task.entity';
+
+export class UpdateTaskDto {
+  @ApiProperty({ example: 1, description: 'Current version for optimistic locking' })
+  @IsInt()
+  @Min(1)
+  version!: number;
+
+  @ApiPropertyOptional({ example: 'Updated task title', minLength: 1, maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  title?: string;
+
+  @ApiPropertyOptional({ example: 'Updated description', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string | null;
+
+  @ApiPropertyOptional({ enum: TaskStatus })
+  @IsOptional()
+  @IsEnum(TaskStatus)
+  status?: TaskStatus;
+
+  @ApiPropertyOptional({ enum: Priority })
+  @IsOptional()
+  @IsEnum(Priority)
+  priority?: Priority;
+
+  @ApiPropertyOptional({ description: 'UUID of assigned team member', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  assigneeId?: string | null;
+
+  @ApiPropertyOptional({
+    example: '2026-10-20',
+    description: 'Due date in YYYY-MM-DD format',
+    nullable: true,
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dueDate must be in YYYY-MM-DD format' })
+  dueDate?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'UUID of linked requirement in same project',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUUID()
+  requirementId?: string | null;
+
+  @ApiPropertyOptional({ description: 'UUID of source meeting in same project', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  sourceMeetingId?: string | null;
+}
