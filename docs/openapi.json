@@ -1261,7 +1261,7 @@
             "cookie": []
           }
         ],
-        "summary": "List tasks linked to this requirement (placeholder until P1-04)",
+        "summary": "List tasks linked to this requirement",
         "tags": [
           "Requirements"
         ]
@@ -1592,6 +1592,636 @@
         "summary": "List revision history for a decision",
         "tags": [
           "Decisions"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/tasks": {
+      "get": {
+        "operationId": "TasksController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TODO",
+                "IN_PROGRESS",
+                "IN_REVIEW",
+                "DONE",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "URGENT"
+              ]
+            }
+          },
+          {
+            "name": "assigneeId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by assignee user ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by requirement ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceMeetingId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by source meeting ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "example": "login",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "number",
+              "type": "string",
+              "enum": [
+                "number",
+                "title",
+                "status",
+                "priority",
+                "dueDate",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tasks returned"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List project tasks with filters and pagination",
+        "tags": [
+          "Tasks"
+        ]
+      },
+      "post": {
+        "operationId": "TasksController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task created"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Create a new task",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/tasks/{taskId}": {
+      "get": {
+        "operationId": "TasksController_getById",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task returned"
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get task details",
+        "tags": [
+          "Tasks"
+        ]
+      },
+      "patch": {
+        "operationId": "TasksController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Update a task",
+        "tags": [
+          "Tasks"
+        ]
+      },
+      "delete": {
+        "operationId": "TasksController_softDelete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Task deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Soft-delete a task",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/meetings": {
+      "get": {
+        "operationId": "MeetingsController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "example": "planning",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Filter meetings starting after this time",
+            "schema": {
+              "example": "2026-09-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Filter meetings starting before this time",
+            "schema": {
+              "example": "2026-09-30T23:59:59.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "startsAt",
+              "type": "string",
+              "enum": [
+                "startsAt",
+                "title",
+                "createdAt"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Meetings returned"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List project meetings with filters and pagination",
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "post": {
+        "operationId": "MeetingsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMeetingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Meeting created"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Create a new meeting",
+        "tags": [
+          "Meetings"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/meetings/{meetingId}": {
+      "get": {
+        "operationId": "MeetingsController_getById",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meetingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Meeting returned"
+          },
+          "404": {
+            "description": "Meeting not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get meeting details",
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "patch": {
+        "operationId": "MeetingsController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meetingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeetingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Meeting updated"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Update a meeting",
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "delete": {
+        "operationId": "MeetingsController_softDelete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meetingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Meeting deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Soft-delete a meeting",
+        "tags": [
+          "Meetings"
         ]
       }
     }
@@ -1995,6 +2625,223 @@
           "supersedesDecisionId": {
             "type": "string",
             "description": "ID of an existing decision this supersedes"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "CreateTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Implement login API",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "example": "Set up endpoints and cookie sessions"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "IN_REVIEW",
+              "DONE",
+              "CANCELLED"
+            ],
+            "default": "TODO"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "default": "MEDIUM"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "UUID of assigned team member"
+          },
+          "dueDate": {
+            "type": "string",
+            "example": "2026-10-15",
+            "description": "Due date in YYYY-MM-DD format"
+          },
+          "requirementId": {
+            "type": "string",
+            "description": "UUID of linked requirement in same project"
+          },
+          "sourceMeetingId": {
+            "type": "string",
+            "description": "UUID of source meeting in same project"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "UpdateTaskDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "example": 1,
+            "description": "Current version for optimistic locking"
+          },
+          "title": {
+            "type": "string",
+            "example": "Updated task title",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "object",
+            "example": "Updated description",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "IN_REVIEW",
+              "DONE",
+              "CANCELLED"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "assigneeId": {
+            "type": "object",
+            "description": "UUID of assigned team member",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "object",
+            "example": "2026-10-20",
+            "description": "Due date in YYYY-MM-DD format",
+            "nullable": true
+          },
+          "requirementId": {
+            "type": "object",
+            "description": "UUID of linked requirement in same project",
+            "nullable": true
+          },
+          "sourceMeetingId": {
+            "type": "object",
+            "description": "UUID of source meeting in same project",
+            "nullable": true
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "CreateMeetingDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Sprint Planning",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "startsAt": {
+            "type": "string",
+            "example": "2026-09-15T09:00:00.000Z"
+          },
+          "endsAt": {
+            "type": "string",
+            "example": "2026-09-15T10:00:00.000Z"
+          },
+          "agenda": {
+            "type": "string",
+            "example": "Review backlog and estimate tasks"
+          },
+          "notes": {
+            "type": "string",
+            "example": "Discussed architecture and timelines"
+          },
+          "transcriptText": {
+            "type": "string",
+            "example": "Speaker 1: Hello everyone..."
+          },
+          "attendeeUserIds": {
+            "description": "List of project member user IDs attending",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "startsAt",
+          "endsAt"
+        ]
+      },
+      "UpdateMeetingDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "example": 1,
+            "description": "Current version for optimistic locking"
+          },
+          "title": {
+            "type": "string",
+            "example": "Updated Sprint Planning",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "startsAt": {
+            "type": "string",
+            "example": "2026-09-15T09:30:00.000Z"
+          },
+          "endsAt": {
+            "type": "string",
+            "example": "2026-09-15T10:30:00.000Z"
+          },
+          "agenda": {
+            "type": "object",
+            "example": "Updated agenda",
+            "nullable": true
+          },
+          "notes": {
+            "type": "object",
+            "example": "Updated notes",
+            "nullable": true
+          },
+          "transcriptText": {
+            "type": "object",
+            "example": "Updated transcript...",
+            "nullable": true
+          },
+          "summary": {
+            "type": "object",
+            "example": "Approved summary of the meeting",
+            "nullable": true
+          },
+          "attendeeUserIds": {
+            "description": "Updated list of project member user IDs attending",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [

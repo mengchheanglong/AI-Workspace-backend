@@ -11,6 +11,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { RequirementsModule } from './modules/requirements/requirements.module';
 import { DecisionsModule } from './modules/decisions/decisions.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { DecisionsModule } from './modules/decisions/decisions.module';
     ProjectsModule,
     RequirementsModule,
     DecisionsModule,
+    TasksModule,
+    MeetingsModule,
   ],
 })
 export class AppModule {}
