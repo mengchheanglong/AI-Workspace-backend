@@ -22,6 +22,11 @@ import { TasksController } from '../src/modules/tasks/tasks.controller';
 import { TasksService } from '../src/modules/tasks/tasks.service';
 import { MeetingsController } from '../src/modules/meetings/meetings.controller';
 import { MeetingsService } from '../src/modules/meetings/meetings.service';
+import { DocumentsController } from '../src/modules/documents/documents.controller';
+import { DocumentsService } from '../src/modules/documents/documents.service';
+import { Document } from '../src/modules/documents/entities/document.entity';
+import { DocumentRevision } from '../src/modules/documents/entities/document-revision.entity';
+import { STORAGE_DRIVER } from '../src/modules/storage/storage.interface';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ProjectMember } from '../src/modules/projects/entities/project-member.entity';
 import { Requirement } from '../src/modules/requirements/entities/requirement.entity';
@@ -48,6 +53,7 @@ import { createOpenApiDocument } from '../src/openapi';
     DecisionsController,
     TasksController,
     MeetingsController,
+    DocumentsController,
   ],
   providers: [
     { provide: HealthService, useValue: {} },
@@ -67,6 +73,8 @@ import { createOpenApiDocument } from '../src/openapi';
     { provide: DecisionsService, useValue: {} },
     { provide: TasksService, useValue: {} },
     { provide: MeetingsService, useValue: {} },
+    { provide: DocumentsService, useValue: {} },
+    { provide: STORAGE_DRIVER, useValue: {} },
     { provide: getRepositoryToken(ProjectMember), useValue: {} },
     { provide: getRepositoryToken(Requirement), useValue: {} },
     { provide: getRepositoryToken(RequirementRevision), useValue: {} },
@@ -75,6 +83,8 @@ import { createOpenApiDocument } from '../src/openapi';
     { provide: getRepositoryToken(Task), useValue: {} },
     { provide: getRepositoryToken(Meeting), useValue: {} },
     { provide: getRepositoryToken(MeetingAttendee), useValue: {} },
+    { provide: getRepositoryToken(Document), useValue: {} },
+    { provide: getRepositoryToken(DocumentRevision), useValue: {} },
     { provide: getRepositoryToken(User), useValue: {} },
     { provide: getRepositoryToken(Project), useValue: {} },
   ],

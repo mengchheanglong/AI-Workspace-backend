@@ -16,10 +16,31 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const http = host.switchToHttp();
     const request = http.getRequest<Request>();
     const response = http.getResponse<Response>();
-    const status =
+    let status =
       exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    const payload: unknown =
-      exception instanceof HttpException ? exception.getResponse() : undefined;
+    let payload: unknown = exception instanceof HttpException ? exception.getResponse() : undefined;
+
+    if (
+      !payload &&
+      exception &&
+      typeof exception === 'object' &&
+      (exception as { name?: string }).name === 'MulterError'
+    ) {
+      const multerErr = exception as { code?: string; message?: string };
+      if (multerErr.code === 'LIMIT_FILE_SIZE') {
+        status = HttpStatus.PAYLOAD_TOO_LARGE;
+        payload = {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'File exceeds maximum allowed size of 20 MiB.',
+        };
+      } else {
+        status = HttpStatus.BAD_REQUEST;
+        payload = {
+          code: 'VALIDATION_ERROR',
+          message: multerErr.message ?? 'File upload error',
+        };
+      }
+    }
     const record =
       typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : {};
     const requestId = String(response.getHeader('x-request-id') ?? 'unavailable');
