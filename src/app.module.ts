@@ -13,6 +13,8 @@ import { RequirementsModule } from './modules/requirements/requirements.module';
 import { DecisionsModule } from './modules/decisions/decisions.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { MeetingsModule } from './modules/meetings/meetings.module';
     DecisionsModule,
     TasksModule,
     MeetingsModule,
+    StorageModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}
