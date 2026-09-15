@@ -15,6 +15,8 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { DocumentsModule } from './modules/documents/documents.module';
     MeetingsModule,
     StorageModule,
     DocumentsModule,
+    DashboardModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
