@@ -2698,6 +2698,236 @@
           "Documents"
         ]
       }
+    },
+    "/api/v1/projects/{projectId}/dashboard": {
+      "get": {
+        "operationId": "DashboardController_getDashboard",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timezone",
+            "required": false,
+            "in": "query",
+            "description": "Display timezone (defaults to Asia/Bangkok)",
+            "schema": {
+              "example": "Asia/Bangkok",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard metrics returned successfully"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found or inaccessible"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get aggregated project dashboard metrics and recent activity",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/activity": {
+      "get": {
+        "operationId": "DashboardController_getActivity",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "Items per page",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity stream returned successfully"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found or inaccessible"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get paginated project activity stream",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/search": {
+      "get": {
+        "operationId": "SearchController_search",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Search keyword",
+            "schema": {
+              "example": "database architecture",
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Filter by entity type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "REQUIREMENT",
+                "DECISION",
+                "TASK",
+                "MEETING",
+                "DOCUMENT"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by status (e.g. APPROVED, IN_PROGRESS, TODO, ACCEPTED)",
+            "schema": {
+              "example": "APPROVED",
+              "type": "string"
+            }
+          },
+          {
+            "name": "assigneeId",
+            "required": false,
+            "in": "query",
+            "description": "Filter tasks by assignee UUID",
+            "schema": {
+              "example": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "description": "Start date filter (ISO string)",
+            "schema": {
+              "example": "2026-09-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "description": "End date filter (ISO string)",
+            "schema": {
+              "example": "2026-09-30T23:59:59.999Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "Items per page",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found or inaccessible"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Search project knowledge base across requirements, decisions, tasks, meetings, and documents",
+        "tags": [
+          "Search"
+        ]
+      }
     }
   },
   "info": {
@@ -3486,6 +3716,145 @@
           "sha256",
           "changedBy",
           "createdAt"
+        ]
+      },
+      "SearchResultItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "REQUIREMENT",
+              "DECISION",
+              "TASK",
+              "MEETING",
+              "DOCUMENT"
+            ],
+            "example": "REQUIREMENT"
+          },
+          "key": {
+            "type": "object",
+            "example": "AIW-REQ-1",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "example": "User Authentication System"
+          },
+          "snippet": {
+            "type": "object",
+            "example": "Support session-based authentication with CSRF protection.",
+            "nullable": true
+          },
+          "status": {
+            "type": "object",
+            "example": "APPROVED",
+            "nullable": true
+          },
+          "priority": {
+            "type": "object",
+            "example": "HIGH",
+            "nullable": true
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-15T12:00:00.000Z"
+          },
+          "metadata": {
+            "type": "object",
+            "example": {
+              "assigneeName": "Alice Developer",
+              "dueDate": "2026-09-30"
+            },
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "updatedAt"
+        ]
+      },
+      "SearchMetaCountsDto": {
+        "type": "object",
+        "properties": {
+          "REQUIREMENT": {
+            "type": "number",
+            "example": 3
+          },
+          "DECISION": {
+            "type": "number",
+            "example": 2
+          },
+          "TASK": {
+            "type": "number",
+            "example": 4
+          },
+          "MEETING": {
+            "type": "number",
+            "example": 1
+          },
+          "DOCUMENT": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "REQUIREMENT",
+          "DECISION",
+          "TASK",
+          "MEETING",
+          "DOCUMENT"
+        ]
+      },
+      "SearchMetaDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "number",
+            "example": 20
+          },
+          "total": {
+            "type": "number",
+            "example": 12
+          },
+          "countsByType": {
+            "$ref": "#/components/schemas/SearchMetaCountsDto"
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "total",
+          "countsByType"
+        ]
+      },
+      "SearchResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SearchMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       }
     }
