@@ -24,6 +24,10 @@ import { MeetingsController } from '../src/modules/meetings/meetings.controller'
 import { MeetingsService } from '../src/modules/meetings/meetings.service';
 import { DocumentsController } from '../src/modules/documents/documents.controller';
 import { DocumentsService } from '../src/modules/documents/documents.service';
+import { DashboardController } from '../src/modules/dashboard/dashboard.controller';
+import { DashboardService } from '../src/modules/dashboard/dashboard.service';
+import { SearchController } from '../src/modules/search/search.controller';
+import { SearchService } from '../src/modules/search/search.service';
 import { Document } from '../src/modules/documents/entities/document.entity';
 import { DocumentRevision } from '../src/modules/documents/entities/document-revision.entity';
 import { STORAGE_DRIVER } from '../src/modules/storage/storage.interface';
@@ -54,6 +58,8 @@ import { createOpenApiDocument } from '../src/openapi';
     TasksController,
     MeetingsController,
     DocumentsController,
+    DashboardController,
+    SearchController,
   ],
   providers: [
     { provide: HealthService, useValue: {} },
@@ -74,6 +80,8 @@ import { createOpenApiDocument } from '../src/openapi';
     { provide: TasksService, useValue: {} },
     { provide: MeetingsService, useValue: {} },
     { provide: DocumentsService, useValue: {} },
+    { provide: DashboardService, useValue: {} },
+    { provide: SearchService, useValue: {} },
     { provide: STORAGE_DRIVER, useValue: {} },
     { provide: getRepositoryToken(ProjectMember), useValue: {} },
     { provide: getRepositoryToken(Requirement), useValue: {} },

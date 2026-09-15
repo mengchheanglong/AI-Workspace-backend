@@ -1,0 +1,209 @@
+import { NotFoundException } from '@nestjs/common';
+import { SearchService } from '../../src/modules/search/search.service';
+import { SearchEntityType } from '../../src/modules/search/dto/search.dto';
+
+describe('SearchService (Unit)', () => {
+  let service: SearchService;
+  let mockProjectRepo: { findOneBy: jest.Mock };
+  let mockReqRepo: { createQueryBuilder: jest.Mock };
+  let mockDecRepo: { createQueryBuilder: jest.Mock };
+  let mockTaskRepo: { createQueryBuilder: jest.Mock };
+  let mockMtgRepo: { createQueryBuilder: jest.Mock };
+  let mockDocRepo: { createQueryBuilder: jest.Mock };
+
+  const mockProjectId = '11111111-1111-1111-1111-111111111111';
+
+  beforeEach(() => {
+    mockProjectRepo = {
+      findOneBy: jest.fn(),
+    };
+
+    interface MockQb<T> {
+      where: () => MockQb<T>;
+      andWhere: () => MockQb<T>;
+      leftJoinAndSelect: () => MockQb<T>;
+      getMany: () => Promise<T[]>;
+    }
+
+    const createMockQb = <T>(items: T[]): MockQb<T> => {
+      const qb: MockQb<T> = {
+        where: jest.fn(() => qb),
+        andWhere: jest.fn(() => qb),
+        leftJoinAndSelect: jest.fn(() => qb),
+        getMany: jest.fn(async () => items),
+      };
+      return qb;
+    };
+
+    mockReqRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(
+        createMockQb([
+          {
+            id: 'req-1',
+            number: 1,
+            title: 'Authentication Module',
+            description: 'Secure session handling',
+            acceptanceCriteria: 'Works on all browsers',
+            status: 'APPROVED',
+            priority: 'HIGH',
+            updatedAt: new Date('2026-09-15T12:00:00Z'),
+            sourceMeetingId: null,
+          },
+        ]),
+      ),
+    };
+
+    mockDecRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(
+        createMockQb([
+          {
+            id: 'dec-1',
+            number: 1,
+            title: 'Adopt NestJS Architecture',
+            decisionText: 'Build as modular monolith',
+            rationale: 'High velocity',
+            status: 'ACCEPTED',
+            decidedAt: new Date('2026-09-15T10:00:00Z'),
+            decidedBy: 'user-1',
+            updatedAt: new Date('2026-09-15T11:00:00Z'),
+            supersedesDecisionId: null,
+          },
+        ]),
+      ),
+    };
+
+    mockTaskRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(
+        createMockQb([
+          {
+            id: 'task-1',
+            number: 1,
+            title: 'Implement Search Controller',
+            description: 'Add keyword search endpoint',
+            status: 'IN_PROGRESS',
+            priority: 'HIGH',
+            dueDate: '2026-09-30',
+            assigneeId: 'user-1',
+            assignee: { displayName: 'Alice' },
+            requirementId: 'req-1',
+            updatedAt: new Date('2026-09-15T13:00:00Z'),
+          },
+        ]),
+      ),
+    };
+
+    mockMtgRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(
+        createMockQb([
+          {
+            id: 'mtg-1',
+            title: 'Architecture Review',
+            agenda: 'Review backend design',
+            notes: 'Agreed on search specifications',
+            summary: 'Review complete',
+            startsAt: new Date('2026-09-14T10:00:00Z'),
+            endsAt: new Date('2026-09-14T11:00:00Z'),
+            transcriptVersion: 1,
+            updatedAt: new Date('2026-09-14T12:00:00Z'),
+          },
+        ]),
+      ),
+    };
+
+    mockDocRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(
+        createMockQb([
+          {
+            id: 'doc-1',
+            title: 'Architecture Document',
+            description: 'Detailed system diagram',
+            originalFilename: 'arch.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: 2048,
+            revision: 1,
+            processingStatus: 'COMPLETED',
+            updatedAt: new Date('2026-09-13T10:00:00Z'),
+          },
+        ]),
+      ),
+    };
+
+    service = new SearchService(
+      mockProjectRepo as unknown as import('typeorm').Repository<
+        import('../../src/modules/projects/entities/project.entity').Project
+      >,
+      mockReqRepo as unknown as import('typeorm').Repository<
+        import('../../src/modules/requirements/entities/requirement.entity').Requirement
+      >,
+      mockDecRepo as unknown as import('typeorm').Repository<
+        import('../../src/modules/decisions/entities/decision.entity').Decision
+      >,
+      mockTaskRepo as unknown as import('typeorm').Repository<
+        import('../../src/modules/tasks/entities/task.entity').Task
+      >,
+      mockMtgRepo as unknown as import('typeorm').Repository<
+        import('../../src/modules/meetings/entities/meeting.entity').Meeting
+      >,
+      mockDocRepo as unknown as import('typeorm').Repository<
+        import('../../src/modules/documents/entities/document.entity').Document
+      >,
+    );
+  });
+
+  it('throws NotFoundException when project does not exist', async () => {
+    mockProjectRepo.findOneBy.mockResolvedValue(null);
+
+    await expect(service.search(mockProjectId, { q: 'auth' })).rejects.toThrow(NotFoundException);
+  });
+
+  it('searches across all 5 entities when type is omitted and returns formatted results', async () => {
+    mockProjectRepo.findOneBy.mockResolvedValue({
+      id: mockProjectId,
+      key: 'AIW',
+    });
+
+    const result = await service.search(mockProjectId, { q: 'search' });
+
+    expect(result.data).toHaveLength(5);
+    expect(result.meta.total).toBe(5);
+    expect(result.meta.countsByType).toEqual({
+      REQUIREMENT: 1,
+      DECISION: 1,
+      TASK: 1,
+      MEETING: 1,
+      DOCUMENT: 1,
+    });
+
+    // Verify ordering: newest updatedAt first (task-1 at 13:00, req-1 at 12:00, etc.)
+    expect(result.data[0]!.id).toBe('task-1');
+    expect(result.data[0]!.key).toBe('AIW-TSK-1');
+    expect(result.data[0]!.type).toBe(SearchEntityType.TASK);
+    expect(result.data[0]!.metadata?.assigneeName).toBe('Alice');
+
+    const reqItem = result.data.find((item) => item.type === SearchEntityType.REQUIREMENT);
+    expect(reqItem?.key).toBe('AIW-REQ-1');
+
+    const decItem = result.data.find((item) => item.type === SearchEntityType.DECISION);
+    expect(decItem?.key).toBe('AIW-DEC-1');
+  });
+
+  it('filters by entity type when type filter is provided', async () => {
+    mockProjectRepo.findOneBy.mockResolvedValue({
+      id: mockProjectId,
+      key: 'AIW',
+    });
+
+    const result = await service.search(mockProjectId, {
+      q: 'auth',
+      type: SearchEntityType.REQUIREMENT,
+    });
+
+    expect(mockReqRepo.createQueryBuilder).toHaveBeenCalled();
+    expect(mockTaskRepo.createQueryBuilder).not.toHaveBeenCalled();
+    expect(mockDecRepo.createQueryBuilder).not.toHaveBeenCalled();
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]!.type).toBe(SearchEntityType.REQUIREMENT);
+    expect(result.meta.countsByType.REQUIREMENT).toBe(1);
+    expect(result.meta.countsByType.TASK).toBe(0);
+  });
+});

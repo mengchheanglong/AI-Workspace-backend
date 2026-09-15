@@ -25,6 +25,7 @@
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
     "migration:run:prod": "typeorm migration:run -d dist/database/data-source.js",
     "openapi:generate": "ts-node scripts/generate-openapi.ts",
+    "seed": "ts-node scripts/seed.ts",
     "db:up": "docker compose up -d --wait postgres",
     "db:test:up": "docker compose --profile test up -d --wait postgres-test",
     "stack:up": "docker compose --profile app up -d --build --wait",
