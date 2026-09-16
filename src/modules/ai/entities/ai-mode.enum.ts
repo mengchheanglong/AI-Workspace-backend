@@ -1,0 +1,8 @@
+export enum AiMode {
+  PM = 'PM',
+  DEVELOPER = 'DEVELOPER',
+  QA = 'QA',
+  DX = 'DX',
+  INFRASTRUCTURE = 'INFRASTRUCTURE',
+  PRESENTATION = 'PRESENTATION',
+}

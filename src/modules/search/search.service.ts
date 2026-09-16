@@ -14,6 +14,8 @@ import {
   SearchMetaCountsDto,
   SearchResponseDto,
 } from './dto/search.dto';
+import { RetrievalService } from '../ai/retrieval/retrieval.service';
+import { KnowledgeSourceType } from '../ingestion/entities';
 
 @Injectable()
 export class SearchService {
@@ -30,6 +32,7 @@ export class SearchService {
     private readonly meetingRepository: Repository<Meeting>,
     @InjectRepository(Document)
     private readonly documentRepository: Repository<Document>,
+    private readonly retrievalService: RetrievalService,
   ) {}
 
   async search(projectId: string, query: SearchQueryDto): Promise<SearchResponseDto> {
@@ -45,6 +48,12 @@ export class SearchService {
     const q = query.q.trim();
     const term = `%${q}%`;
     const selectedType = query.type;
+    const searchMode = query.mode || 'keyword';
+
+    // If semantic or hybrid search mode is requested, use RetrievalService
+    if (searchMode === 'semantic' || searchMode === 'hybrid') {
+      return this.searchViaRetrieval(projectId, q, searchMode, query);
+    }
 
     const countsByType: SearchMetaCountsDto = {
       REQUIREMENT: 0,
@@ -339,5 +348,90 @@ export class SearchService {
     const clean = text.replace(/\s+/g, ' ').trim();
     if (clean.length <= maxLength) return clean;
     return `${clean.slice(0, maxLength)}...`;
+  }
+
+  private async searchViaRetrieval(
+    projectId: string,
+    q: string,
+    mode: 'semantic' | 'hybrid',
+    query: SearchQueryDto,
+  ): Promise<SearchResponseDto> {
+    const countsByType: SearchMetaCountsDto = {
+      REQUIREMENT: 0,
+      DECISION: 0,
+      TASK: 0,
+      MEETING: 0,
+      DOCUMENT: 0,
+    };
+
+    const typeMap: Record<KnowledgeSourceType, SearchEntityType> = {
+      [KnowledgeSourceType.DOCUMENT]: SearchEntityType.DOCUMENT,
+      [KnowledgeSourceType.REQUIREMENT]: SearchEntityType.REQUIREMENT,
+      [KnowledgeSourceType.DECISION]: SearchEntityType.DECISION,
+      [KnowledgeSourceType.TASK]: SearchEntityType.TASK,
+      [KnowledgeSourceType.MEETING]: SearchEntityType.MEETING,
+    };
+
+    const reverseTypeMap: Record<SearchEntityType, KnowledgeSourceType> = {
+      [SearchEntityType.DOCUMENT]: KnowledgeSourceType.DOCUMENT,
+      [SearchEntityType.REQUIREMENT]: KnowledgeSourceType.REQUIREMENT,
+      [SearchEntityType.DECISION]: KnowledgeSourceType.DECISION,
+      [SearchEntityType.TASK]: KnowledgeSourceType.TASK,
+      [SearchEntityType.MEETING]: KnowledgeSourceType.MEETING,
+    };
+
+    const sourceTypeFilter = query.type ? reverseTypeMap[query.type] : undefined;
+
+    const evidence = await this.retrievalService.retrieve({
+      actorId: '',
+      projectId,
+      query: q,
+      filters: sourceTypeFilter ? { sourceType: sourceTypeFilter } : undefined,
+      limit: 50,
+      mode,
+    });
+
+    const seenSources = new Set<string>();
+    const items: SearchResultItemDto[] = [];
+
+    for (const e of evidence) {
+      const entityType = typeMap[e.sourceType] || SearchEntityType.DOCUMENT;
+      countsByType[entityType]++;
+
+      if (seenSources.has(e.sourceId)) continue;
+      seenSources.add(e.sourceId);
+
+      items.push({
+        id: e.sourceId,
+        type: entityType,
+        key: e.locator,
+        title: e.title,
+        snippet: e.snippet,
+        status: 'INDEXED',
+        priority: null,
+        updatedAt: new Date(),
+        metadata: {
+          score: e.score,
+          locator: e.locator,
+          revision: e.revision,
+          chunkId: e.chunkId,
+        },
+      });
+    }
+
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const total = items.length;
+    const paginated = items.slice((page - 1) * pageSize, page * pageSize);
+
+    return {
+      data: paginated,
+      meta: {
+        page,
+        pageSize,
+        total,
+        countsByType,
+      },
+    };
   }
 }

@@ -9,9 +9,11 @@ import { Task } from '../tasks/entities/task.entity';
 import { Meeting } from '../meetings/entities/meeting.entity';
 import { Document } from '../documents/entities/document.entity';
 import { ProjectMember } from '../projects/entities/project-member.entity';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
+    AiModule,
     TypeOrmModule.forFeature([
       Project,
       Requirement,

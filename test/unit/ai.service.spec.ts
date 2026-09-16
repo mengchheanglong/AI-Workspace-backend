@@ -1,0 +1,236 @@
+import { NotFoundException } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { AiService } from '../../src/modules/ai/ai.service';
+import { ContextAssembler } from '../../src/modules/ai/context/context-assembler';
+import { AiMode } from '../../src/modules/ai/entities/ai-mode.enum';
+import { ChatMessage, MessageStatus } from '../../src/modules/ai/entities/chat-message.entity';
+import { Conversation } from '../../src/modules/ai/entities/conversation.entity';
+import { LlmProvider } from '../../src/modules/ai/llm/llm-provider.interface';
+import {
+  RetrievalService,
+  RetrievedEvidence,
+} from '../../src/modules/ai/retrieval/retrieval.service';
+import { IngestionService } from '../../src/modules/ingestion/ingestion.service';
+import { KnowledgeSourceType } from '../../src/modules/ingestion/entities';
+import { Project } from '../../src/modules/projects/entities/project.entity';
+
+describe('AiService', () => {
+  let service: AiService;
+  let mockConversationRepo: {
+    create: jest.Mock;
+    save: jest.Mock;
+    find: jest.Mock;
+    findOne: jest.Mock;
+  };
+  let mockMessageRepo: {
+    create: jest.Mock;
+    save: jest.Mock;
+    find: jest.Mock;
+    findOne: jest.Mock;
+  };
+  let mockProjectRepo: {
+    findOne: jest.Mock;
+  };
+  let mockRetrievalService: {
+    retrieve: jest.Mock;
+    setEmbeddingProvider: jest.Mock;
+  };
+  let contextAssembler: ContextAssembler;
+  let mockLlmProvider: {
+    generateAnswer: jest.Mock;
+  };
+  let mockIngestionService: {
+    getEmbeddingProvider: jest.Mock;
+  };
+
+  const mockProjectId = 'proj-1111-1111';
+  const mockUserId = 'user-2222-2222';
+
+  beforeEach(() => {
+    mockConversationRepo = {
+      create: jest.fn((dto) => ({
+        id: 'conv-1',
+        ...dto,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      save: jest.fn((entity) => Promise.resolve({ id: entity.id || 'conv-1', ...entity })),
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+    };
+
+    mockMessageRepo = {
+      create: jest.fn((dto) => ({ id: 'msg-1', ...dto, createdAt: new Date() })),
+      save: jest.fn((entity) => Promise.resolve({ id: entity.id || 'msg-1', ...entity })),
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+    };
+
+    mockProjectRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: mockProjectId, name: 'Test Project' }),
+    };
+
+    mockRetrievalService = {
+      retrieve: jest.fn().mockResolvedValue([]),
+      setEmbeddingProvider: jest.fn(),
+    };
+
+    contextAssembler = new ContextAssembler();
+
+    mockLlmProvider = {
+      generateAnswer: jest.fn(),
+    };
+
+    mockIngestionService = {
+      getEmbeddingProvider: jest.fn().mockReturnValue(null),
+    };
+
+    service = new AiService(
+      mockConversationRepo as unknown as Repository<Conversation>,
+      mockMessageRepo as unknown as Repository<ChatMessage>,
+      mockProjectRepo as unknown as Repository<Project>,
+      mockRetrievalService as unknown as RetrievalService,
+      contextAssembler,
+      mockLlmProvider as unknown as LlmProvider,
+      mockIngestionService as unknown as IngestionService,
+    );
+  });
+
+  describe('createConversation', () => {
+    it('creates a new conversation successfully', async () => {
+      const result = await service.createConversation(mockProjectId, mockUserId, {
+        title: 'Q&A on sprint',
+        defaultMode: AiMode.DEVELOPER,
+      });
+
+      expect(mockProjectRepo.findOne).toHaveBeenCalledWith({ where: { id: mockProjectId } });
+      expect(mockConversationRepo.create).toHaveBeenCalledWith({
+        projectId: mockProjectId,
+        userId: mockUserId,
+        title: 'Q&A on sprint',
+        defaultMode: AiMode.DEVELOPER,
+      });
+      expect(result.id).toBe('conv-1');
+    });
+
+    it('throws NotFoundException when project does not exist', async () => {
+      mockProjectRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.createConversation('unknown-proj', mockUserId, { title: 'Test' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getConversation', () => {
+    it('returns conversation if found and authorized', async () => {
+      mockConversationRepo.findOne.mockResolvedValue({
+        id: 'conv-1',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        title: 'Architecture discussion',
+      });
+
+      const conv = await service.getConversation(mockProjectId, mockUserId, 'conv-1');
+      expect(conv.title).toBe('Architecture discussion');
+    });
+
+    it('throws NotFoundException if not found or different user/project', async () => {
+      mockConversationRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getConversation(mockProjectId, mockUserId, 'nonexistent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('postMessage', () => {
+    it('orchestrates retrieval, context assembly, LLM generation, and citation validation', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        title: 'New Conversation',
+        defaultMode: AiMode.PM,
+        updatedAt: new Date(),
+      };
+      mockConversationRepo.findOne.mockResolvedValue(mockConv);
+
+      const mockEvidence: RetrievedEvidence[] = [
+        {
+          chunkId: 'chunk-valid-1',
+          sourceId: 'src-1',
+          sourceType: KnowledgeSourceType.REQUIREMENT,
+          title: 'PostgreSQL Vector Search',
+          revision: 1,
+          locator: 'Chunk #1',
+          snippet: 'pgvector provides cosine distance indexing.',
+          score: 0.95,
+        },
+      ];
+      mockRetrievalService.retrieve.mockResolvedValue(mockEvidence);
+
+      mockLlmProvider.generateAnswer.mockResolvedValue({
+        content: 'PostgreSQL uses pgvector for embeddings. [Evidence #1]',
+        citations: [
+          {
+            chunkId: 'chunk-valid-1',
+            sourceId: 'src-1',
+            sourceType: KnowledgeSourceType.REQUIREMENT,
+            title: 'PostgreSQL Vector Search',
+            revision: 1,
+          },
+          {
+            // Hallucinated citation that was NOT in retrieved evidence
+            chunkId: 'chunk-fake-99',
+            sourceId: 'fake',
+            sourceType: 'DOCUMENT',
+            title: 'Fake Document',
+            revision: 1,
+          },
+        ],
+        modelName: 'deepseek-v4-pro',
+        promptTokens: 120,
+        completionTokens: 50,
+      });
+
+      const { userMessage, assistantMessage } = await service.postMessage(
+        mockProjectId,
+        mockUserId,
+        'conv-1',
+        { content: 'Tell me about pgvector' },
+      );
+
+      expect(userMessage.content).toBe('Tell me about pgvector');
+      expect(assistantMessage.content).toBe(
+        'PostgreSQL uses pgvector for embeddings. [Evidence #1]',
+      );
+      expect(assistantMessage.status).toBe(MessageStatus.COMPLETED);
+
+      // Verify citation validation filtered out chunk-fake-99
+      expect(assistantMessage.citations).toHaveLength(1);
+      expect(assistantMessage.citations[0]!.chunkId).toBe('chunk-valid-1');
+    });
+
+    it('handles LLM generation failure gracefully with FAILED message status', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        title: 'New Conversation',
+        defaultMode: AiMode.PM,
+        updatedAt: new Date(),
+      };
+      mockConversationRepo.findOne.mockResolvedValue(mockConv);
+      mockRetrievalService.retrieve.mockResolvedValue([]);
+      mockLlmProvider.generateAnswer.mockRejectedValue(new Error('DeepSeek API connection error'));
+
+      const { assistantMessage } = await service.postMessage(mockProjectId, mockUserId, 'conv-1', {
+        content: 'Query that fails',
+      });
+
+      expect(assistantMessage.status).toBe(MessageStatus.FAILED);
+      expect(assistantMessage.content).toContain('An error occurred while generating the response');
+    });
+  });
+});

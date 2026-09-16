@@ -1,0 +1,135 @@
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  ChatCompletionMessage,
+  GenerateAnswerParams,
+  GenerateAnswerResult,
+  LlmProvider,
+} from './llm-provider.interface';
+import { CitationItem } from '../entities/chat-message.entity';
+
+interface DeepSeekUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
+interface DeepSeekChoice {
+  message?: {
+    role: string;
+    content: string;
+  };
+  finish_reason?: string;
+}
+
+interface DeepSeekApiResponse {
+  id?: string;
+  choices?: DeepSeekChoice[];
+  usage?: DeepSeekUsage;
+  model?: string;
+}
+
+@Injectable()
+export class DeepSeekLlmProvider implements LlmProvider {
+  private readonly logger = new Logger(DeepSeekLlmProvider.name);
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly baseUrl = 'https://api.deepseek.com',
+    private readonly modelName = 'deepseek-v4-pro',
+  ) {}
+
+  async generateAnswer(params: GenerateAnswerParams): Promise<GenerateAnswerResult> {
+    const { messages, evidence, temperature = 0.2, maxTokens = 1500 } = params;
+
+    const endpoint = `${this.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.modelName,
+          messages: messages.map((m: ChatCompletionMessage) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          temperature,
+          max_tokens: maxTokens,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const status = response.status;
+        this.logger.error(`DeepSeek API returned HTTP status ${status}`);
+        throw new Error(`DeepSeek API request failed with status ${status}`);
+      }
+
+      const data = (await response.json()) as DeepSeekApiResponse;
+      const content = data.choices?.[0]?.message?.content || '';
+
+      const citations = this.extractCitations(content, evidence);
+
+      return {
+        content,
+        citations,
+        modelName: data.model || this.modelName,
+        promptTokens: data.usage?.prompt_tokens ?? Math.ceil(content.length / 4),
+        completionTokens: data.usage?.completion_tokens ?? Math.ceil(content.length / 4),
+      };
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.error('DeepSeek API request timed out after 30s');
+        throw new Error('DeepSeek API request timed out', { cause: error });
+      }
+      this.logger.error(
+        `DeepSeek API error: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private extractCitations(
+    content: string,
+    evidence: GenerateAnswerParams['evidence'],
+  ): CitationItem[] {
+    if (!evidence || evidence.length === 0) {
+      return [];
+    }
+
+    const citationMap = new Map<string, CitationItem>();
+    // Match [Evidence #1], [Evidence #2], [Evidence 1], Evidence #1
+    const regex = /(?:\[Evidence\s*#?(\d+)\]|Evidence\s*#(\d+))/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(content)) !== null) {
+      const indexStr = match[1] || match[2] || '';
+      const index = parseInt(indexStr, 10);
+      if (index >= 1 && index <= evidence.length) {
+        const item = evidence[index - 1]!;
+        if (!citationMap.has(item.chunkId)) {
+          citationMap.set(item.chunkId, {
+            chunkId: item.chunkId,
+            sourceId: item.sourceId,
+            sourceType: item.sourceType,
+            title: item.title,
+            revision: item.revision,
+            locator: item.locator,
+            score: item.score,
+            snippet: item.snippet,
+          });
+        }
+      }
+    }
+
+    return Array.from(citationMap.values());
+  }
+}

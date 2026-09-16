@@ -34,7 +34,7 @@ async function verify() {
     `);
     console.log(
       `Found ${tablesCheck.length}/4 ingestion tables:`,
-      tablesCheck.map((t: any) => t.table_name).join(', '),
+      tablesCheck.map((t: { table_name: string }) => t.table_name).join(', '),
     );
     if (tablesCheck.length < 4) {
       throw new Error('Not all ingestion tables exist in the database!');
