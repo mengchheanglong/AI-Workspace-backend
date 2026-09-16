@@ -16,6 +16,7 @@ import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
 import { ListMeetingsQueryDto } from './dto/list-meetings-query.dto';
 import { AuditService } from '../audit/audit.service';
+import { OutboxService } from '../ingestion/outbox.service';
 
 const SORT_COLUMN_MAP: Record<string, string> = {
   startsAt: 'meeting.startsAt',
@@ -37,6 +38,7 @@ export class MeetingsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly auditService: AuditService,
+    private readonly outboxService: OutboxService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -90,6 +92,22 @@ export class MeetingsService {
         await manager.save(MeetingAttendee, attendees);
         saved.attendees = attendees;
       }
+
+      await this.outboxService.emit(manager, {
+        projectId,
+        eventType: 'MEETING_CREATED',
+        payload: {
+          meetingId: saved.id,
+          revision: 1,
+          title: saved.title,
+          status: 'COMPLETED',
+          scheduledAt: saved.startsAt,
+          agenda: saved.agenda,
+          notes: saved.notes,
+          actionItems: [],
+        },
+        dedupeKey: `meeting:${saved.id}:1:created`,
+      });
 
       await this.auditService.record({
         projectId,
@@ -226,6 +244,22 @@ export class MeetingsService {
         }
       }
 
+      await this.outboxService.emit(manager, {
+        projectId,
+        eventType: 'MEETING_UPDATED',
+        payload: {
+          meetingId: saved.id,
+          revision: saved.version,
+          title: saved.title,
+          status: 'COMPLETED',
+          scheduledAt: saved.startsAt,
+          agenda: saved.agenda,
+          notes: saved.notes,
+          actionItems: [],
+        },
+        dedupeKey: `meeting:${saved.id}:${saved.version}:updated`,
+      });
+
       await this.auditService.record({
         projectId,
         actorId,
@@ -256,9 +290,20 @@ export class MeetingsService {
       });
     }
 
-    meeting.deletedAt = new Date();
-    meeting.updatedBy = actorId;
-    await this.meetingRepository.save(meeting);
+    await this.dataSource.transaction(async (manager) => {
+      meeting.deletedAt = new Date();
+      meeting.updatedBy = actorId;
+      await manager.save(Meeting, meeting);
+
+      await this.outboxService.emit(manager, {
+        projectId,
+        eventType: 'MEETING_DELETED',
+        payload: {
+          meetingId: meeting.id,
+        },
+        dedupeKey: `meeting:${meeting.id}:deleted`,
+      });
+    });
 
     await this.auditService.record({
       projectId,

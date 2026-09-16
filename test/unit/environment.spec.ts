@@ -80,4 +80,29 @@ describe('Environment validation', () => {
       }),
     ).toThrow('INITIAL_ADMIN_EMAIL');
   });
+
+  it('accepts valid Phase 2 AI configuration when credentials and budget are provided', () => {
+    const config = validateEnvironment({
+      ...valid,
+      AI_ENABLED: 'true',
+      DEEPSEEK_API_KEY: 'test-deepseek-key',
+      AI_DAILY_PROJECT_BUDGET_USD: '25.00',
+    });
+    expect(config.AI_ENABLED).toBe(true);
+    expect(config.DEEPSEEK_API_KEY).toBe('test-deepseek-key');
+    expect(config.AI_EMBEDDING_PROVIDER).toBe('mock');
+    expect(config.AI_DAILY_PROJECT_BUDGET_USD).toBe(25);
+  });
+
+  it('rejects openai embedding provider when OPENAI_API_KEY is missing and AI is enabled', () => {
+    expect(() =>
+      validateEnvironment({
+        ...valid,
+        AI_ENABLED: 'true',
+        DEEPSEEK_API_KEY: 'test-deepseek-key',
+        AI_EMBEDDING_PROVIDER: 'openai',
+        AI_DAILY_PROJECT_BUDGET_USD: '25.00',
+      }),
+    ).toThrow('OPENAI_API_KEY');
+  });
 });

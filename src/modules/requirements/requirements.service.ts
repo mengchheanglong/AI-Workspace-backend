@@ -14,6 +14,7 @@ import { CreateRequirementDto } from './dto/create-requirement.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { ListRequirementsQueryDto } from './dto/list-requirements-query.dto';
 import { AuditService } from '../audit/audit.service';
+import { OutboxService } from '../ingestion/outbox.service';
 
 /** Column name map for allowlisted sort fields */
 const SORT_COLUMN_MAP: Record<string, string> = {
@@ -35,6 +36,7 @@ export class RequirementsService {
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
     private readonly auditService: AuditService,
+    private readonly outboxService: OutboxService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -80,6 +82,23 @@ export class RequirementsService {
         changedBy: actorId,
       });
       await manager.save(RequirementRevision, revision);
+
+      await this.outboxService.emit(manager, {
+        projectId,
+        eventType: 'REQUIREMENT_CREATED',
+        payload: {
+          requirementId: saved.id,
+          revision: 1,
+          title: saved.title,
+          type: 'FUNCTIONAL',
+          priority: saved.priority,
+          status: saved.status,
+          description: saved.description,
+          acceptanceCriteria: saved.acceptanceCriteria,
+          rationale: null,
+        },
+        dedupeKey: `requirement:${saved.id}:1:created`,
+      });
 
       await this.auditService.record({
         projectId,
@@ -185,6 +204,23 @@ export class RequirementsService {
     });
     await this.revisionRepository.save(revision);
 
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'REQUIREMENT_UPDATED',
+      payload: {
+        requirementId: saved.id,
+        revision: saved.version,
+        title: saved.title,
+        type: 'FUNCTIONAL',
+        priority: saved.priority,
+        status: saved.status,
+        description: saved.description,
+        acceptanceCriteria: saved.acceptanceCriteria,
+        rationale: null,
+      },
+      dedupeKey: `requirement:${saved.id}:${saved.version}:updated`,
+    });
+
     await this.auditService.record({
       projectId,
       actorId,
@@ -218,6 +254,15 @@ export class RequirementsService {
     requirement.deletedAt = new Date();
     requirement.updatedBy = actorId;
     await this.requirementRepository.save(requirement);
+
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'REQUIREMENT_DELETED',
+      payload: {
+        requirementId: requirement.id,
+      },
+      dedupeKey: `requirement:${requirement.id}:deleted`,
+    });
 
     await this.auditService.record({
       projectId,

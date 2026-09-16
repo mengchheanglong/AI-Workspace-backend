@@ -25,6 +25,7 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents-query.dto';
 import { STORAGE_DRIVER, type StorageDriver } from '../storage/storage.interface';
 import { AuditService } from '../audit/audit.service';
+import { OutboxService } from '../ingestion/outbox.service';
 
 const DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MiB
 
@@ -58,6 +59,7 @@ export class DocumentsService {
     @Inject(STORAGE_DRIVER)
     private readonly storageDriver: StorageDriver,
     private readonly auditService: AuditService,
+    private readonly outboxService: OutboxService,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
   ) {
@@ -206,6 +208,20 @@ export class DocumentsService {
         });
         await revRepo.save(initialRevision);
 
+        await this.outboxService.emit(manager, {
+          projectId,
+          eventType: 'DOCUMENT_CREATED',
+          payload: {
+            documentId: savedDoc.id,
+            revision: 1,
+            title: savedDoc.title,
+            storageKey: savedDoc.storageKey,
+            mimeType: savedDoc.mimeType,
+            originalFilename: savedDoc.originalFilename,
+          },
+          dedupeKey: `document:${savedDoc.id}:1:created`,
+        });
+
         return savedDoc;
       });
 
@@ -321,6 +337,20 @@ export class DocumentsService {
 
     const updated = await this.documentRepository.save(doc);
 
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'DOCUMENT_UPDATED',
+      payload: {
+        documentId: updated.id,
+        revision: updated.revision,
+        title: updated.title,
+        storageKey: updated.storageKey,
+        mimeType: updated.mimeType,
+        originalFilename: updated.originalFilename,
+      },
+      dedupeKey: `document:${updated.id}:${updated.revision}:${updated.version}:updated`,
+    });
+
     await this.auditService.record({
       projectId,
       actorId,
@@ -380,7 +410,23 @@ export class DocumentsService {
         doc.lastErrorCode = null;
         doc.updatedBy = actorId;
 
-        return docRepo.save(doc);
+        const savedDoc = await docRepo.save(doc);
+
+        await this.outboxService.emit(manager, {
+          projectId,
+          eventType: 'DOCUMENT_UPDATED',
+          payload: {
+            documentId: savedDoc.id,
+            revision: nextRevision,
+            title: savedDoc.title,
+            storageKey: savedDoc.storageKey,
+            mimeType: savedDoc.mimeType,
+            originalFilename: savedDoc.originalFilename,
+          },
+          dedupeKey: `document:${savedDoc.id}:${nextRevision}:replaced`,
+        });
+
+        return savedDoc;
       });
 
       await this.auditService.record({
@@ -479,6 +525,15 @@ export class DocumentsService {
     doc.deletedAt = new Date();
     doc.updatedBy = actorId;
     await this.documentRepository.save(doc);
+
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'DOCUMENT_DELETED',
+      payload: {
+        documentId: doc.id,
+      },
+      dedupeKey: `document:${doc.id}:deleted`,
+    });
 
     await this.auditService.record({
       projectId,

@@ -38,20 +38,53 @@ const schema = z
     SWAGGER_ENABLED: booleanString.default(false),
     AI_ENABLED: booleanString.default(false),
     GITHUB_ENABLED: booleanString.default(false),
+    REDIS_URL: z.string().default('redis://127.0.0.1:56379'),
     AI_LLM_PROVIDER: z.literal('deepseek').default('deepseek'),
+    DEEPSEEK_API_KEY: emptyStringToUndefined(z.string().optional()),
     DEEPSEEK_BASE_URL: z.literal('https://api.deepseek.com').default('https://api.deepseek.com'),
     AI_CHAT_MODEL: z.literal('deepseek-v4-pro').default('deepseek-v4-pro'),
+    AI_EMBEDDING_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
+    OPENAI_API_KEY: emptyStringToUndefined(z.string().optional()),
+    OPENAI_EMBEDDING_BASE_URL: z.string().default('https://api.openai.com/v1'),
+    AI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+    AI_EMBEDDING_DIMENSIONS: z.coerce.number().int().default(1536),
+    AI_DAILY_PROJECT_BUDGET_USD: emptyStringToUndefined(z.coerce.number().optional()),
   })
   .superRefine((value, context) => {
-    // Fail honestly rather than advertising providers that are not implemented yet.
-    for (const key of ['AI_ENABLED', 'GITHUB_ENABLED'] as const) {
-      if (value[key])
+    if (value.GITHUB_ENABLED) {
+      context.addIssue({
+        code: 'custom',
+        path: ['GITHUB_ENABLED'],
+        message: 'Available in Phase 2 Milestone P2-04, not this foundation.',
+      });
+    }
+
+    if (value.AI_ENABLED) {
+      if (!value.DEEPSEEK_API_KEY) {
         context.addIssue({
           code: 'custom',
-          path: [key],
-          message: 'Available in Phase 2, not this foundation.',
+          path: ['DEEPSEEK_API_KEY'],
+          message: 'DEEPSEEK_API_KEY is required when AI_ENABLED is true.',
         });
+      }
+      if (value.AI_EMBEDDING_PROVIDER === 'openai' && !value.OPENAI_API_KEY) {
+        context.addIssue({
+          code: 'custom',
+          path: ['OPENAI_API_KEY'],
+          message:
+            'OPENAI_API_KEY is required when AI_EMBEDDING_PROVIDER is openai and AI_ENABLED is true.',
+        });
+      }
+      if (value.AI_DAILY_PROJECT_BUDGET_USD === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['AI_DAILY_PROJECT_BUDGET_USD'],
+          message:
+            'Configure nonempty AI_DAILY_PROJECT_BUDGET_USD explicitly before enabling paid AI.',
+        });
+      }
     }
+
     if (value.NODE_ENV === 'production' && value.SWAGGER_ENABLED) {
       context.addIssue({
         code: 'custom',

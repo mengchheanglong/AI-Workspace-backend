@@ -2928,6 +2928,190 @@
           "Search"
         ]
       }
+    },
+    "/api/v1/projects/{projectId}/ingestion/sources": {
+      "get": {
+        "operationId": "IngestionController_listSources",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DOCUMENT",
+                "REQUIREMENT",
+                "DECISION",
+                "TASK",
+                "MEETING"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "PROCESSING",
+                "INDEXED",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search term for title",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge sources returned"
+          },
+          "401": {
+            "description": "Authentication required"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List knowledge sources for a project",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/ingestion/sources/{sourceId}": {
+      "get": {
+        "operationId": "IngestionController_getSource",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge source returned"
+          },
+          "404": {
+            "description": "Knowledge source not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get details of a knowledge source including chunks",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/ingestion/sources/{sourceId}/reindex": {
+      "post": {
+        "operationId": "IngestionController_reindexSource",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reindexing job created"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Trigger manual re-indexing of a knowledge source",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/ingestion/jobs": {
+      "get": {
+        "operationId": "IngestionController_listJobs",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs returned"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List background ingestion and reindexing jobs",
+        "tags": [
+          "Ingestion"
+        ]
+      }
     }
   },
   "info": {

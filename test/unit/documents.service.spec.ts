@@ -20,6 +20,7 @@ import {
 } from '../../src/modules/projects/entities/project-member.entity';
 import { STORAGE_DRIVER, StorageDriver } from '../../src/modules/storage/storage.interface';
 import { AuditService } from '../../src/modules/audit/audit.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
 const ACTOR_ID = '22222222-2222-2222-2222-222222222222';
@@ -141,6 +142,7 @@ describe('DocumentsService', () => {
         { provide: getRepositoryToken(ProjectMember), useValue: mockMemberRepo },
         { provide: STORAGE_DRIVER, useValue: mockStorageDriver },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: OutboxService, useValue: { emit: jest.fn().mockResolvedValue({}) } },
         { provide: DataSource, useValue: mockDataSource },
         { provide: ConfigService, useValue: mockConfigService },
       ],

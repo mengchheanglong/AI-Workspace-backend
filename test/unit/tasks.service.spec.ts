@@ -17,6 +17,7 @@ import {
 import { Requirement } from '../../src/modules/requirements/entities/requirement.entity';
 import { Meeting } from '../../src/modules/meetings/entities/meeting.entity';
 import { AuditService } from '../../src/modules/audit/audit.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
 const ACTOR_ID = '22222222-2222-2222-2222-222222222222';
@@ -81,6 +82,10 @@ describe('TasksService', () => {
     record: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockOutboxService = {
+    emit: jest.fn().mockResolvedValue({}),
+  };
+
   const mockTransactionManager = {
     query: jest.fn(),
     create: jest.fn(),
@@ -105,6 +110,7 @@ describe('TasksService', () => {
         { provide: getRepositoryToken(Requirement), useValue: mockRequirementRepo },
         { provide: getRepositoryToken(Meeting), useValue: mockMeetingRepo },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: OutboxService, useValue: mockOutboxService },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
