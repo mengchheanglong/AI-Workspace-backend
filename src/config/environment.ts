@@ -6,6 +6,12 @@ const postgresUrl = z
   .url()
   .refine((value) => /^postgres(?:ql)?:\/\//.test(value));
 
+const emptyStringToUndefined = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    schema,
+  );
+
 const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -24,8 +30,8 @@ const schema = z
     MAX_UPLOAD_BYTES: z.coerce.number().int().positive().max(20971520).default(20971520),
     SESSION_IDLE_HOURS: z.coerce.number().int().min(1).default(8),
     SESSION_ABSOLUTE_DAYS: z.coerce.number().int().min(1).default(7),
-    INITIAL_ADMIN_EMAIL: z.string().email().optional(),
-    INITIAL_ADMIN_PASSWORD: z.string().min(8).optional(),
+    INITIAL_ADMIN_EMAIL: emptyStringToUndefined(z.string().email().optional()),
+    INITIAL_ADMIN_PASSWORD: emptyStringToUndefined(z.string().min(8).optional()),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
@@ -51,6 +57,15 @@ const schema = z
         code: 'custom',
         path: ['SWAGGER_ENABLED'],
         message: 'Public documentation must be disabled in production.',
+      });
+    }
+    const hasAdminEmail = Boolean(value.INITIAL_ADMIN_EMAIL);
+    const hasAdminPassword = Boolean(value.INITIAL_ADMIN_PASSWORD);
+    if (hasAdminEmail !== hasAdminPassword) {
+      context.addIssue({
+        code: 'custom',
+        path: [hasAdminEmail ? 'INITIAL_ADMIN_PASSWORD' : 'INITIAL_ADMIN_EMAIL'],
+        message: 'Both INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD must be provided together.',
       });
     }
   });

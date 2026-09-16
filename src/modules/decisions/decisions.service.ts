@@ -185,18 +185,6 @@ export class DecisionsService {
 
     const isAccepted = decision.status === DecisionStatus.ACCEPTED;
 
-    // Snapshot current state as revision
-    const revision = this.revisionRepository.create({
-      decisionId: decision.id,
-      version: decision.version,
-      title: decision.title,
-      decisionText: decision.decisionText,
-      rationale: decision.rationale,
-      status: decision.status,
-      changedBy: actorId,
-    });
-    await this.revisionRepository.save(revision);
-
     // Apply updates
     if (dto.title !== undefined) decision.title = dto.title.trim();
     if (dto.decisionText !== undefined) decision.decisionText = dto.decisionText.trim();
@@ -217,6 +205,18 @@ export class DecisionsService {
     decision.updatedBy = actorId;
 
     const saved = await this.decisionRepository.save(decision);
+
+    // Snapshot updated state as revision
+    const revision = this.revisionRepository.create({
+      decisionId: saved.id,
+      version: saved.version,
+      title: saved.title,
+      decisionText: saved.decisionText,
+      rationale: saved.rationale,
+      status: saved.status,
+      changedBy: actorId,
+    });
+    await this.revisionRepository.save(revision);
 
     // Extra auditing when modifying an accepted decision
     const action = isAccepted ? 'ACCEPTED_DECISION_UPDATED' : 'DECISION_UPDATED';
