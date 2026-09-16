@@ -28,6 +28,8 @@ import { DashboardController } from '../src/modules/dashboard/dashboard.controll
 import { DashboardService } from '../src/modules/dashboard/dashboard.service';
 import { SearchController } from '../src/modules/search/search.controller';
 import { SearchService } from '../src/modules/search/search.service';
+import { IngestionController } from '../src/modules/ingestion/ingestion.controller';
+import { IngestionService } from '../src/modules/ingestion/ingestion.service';
 import { Document } from '../src/modules/documents/entities/document.entity';
 import { DocumentRevision } from '../src/modules/documents/entities/document-revision.entity';
 import { STORAGE_DRIVER } from '../src/modules/storage/storage.interface';
@@ -60,6 +62,7 @@ import { createOpenApiDocument } from '../src/openapi';
     DocumentsController,
     DashboardController,
     SearchController,
+    IngestionController,
   ],
   providers: [
     { provide: HealthService, useValue: {} },
@@ -82,6 +85,7 @@ import { createOpenApiDocument } from '../src/openapi';
     { provide: DocumentsService, useValue: {} },
     { provide: DashboardService, useValue: {} },
     { provide: SearchService, useValue: {} },
+    { provide: IngestionService, useValue: {} },
     { provide: STORAGE_DRIVER, useValue: {} },
     { provide: getRepositoryToken(ProjectMember), useValue: {} },
     { provide: getRepositoryToken(Requirement), useValue: {} },

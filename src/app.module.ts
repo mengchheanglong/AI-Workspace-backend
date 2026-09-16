@@ -17,6 +17,8 @@ import { StorageModule } from './modules/storage/storage.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SearchModule } from './modules/search/search.module';
+import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { OutboxModule } from './modules/ingestion/outbox.module';
 
 @Module({
   imports: [
@@ -55,6 +57,8 @@ import { SearchModule } from './modules/search/search.module';
     DocumentsModule,
     DashboardModule,
     SearchModule,
+    OutboxModule,
+    IngestionModule,
   ],
 })
 export class AppModule {}

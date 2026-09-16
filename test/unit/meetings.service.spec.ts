@@ -17,6 +17,7 @@ import {
 } from '../../src/modules/projects/entities/project-member.entity';
 import { User } from '../../src/modules/users/entities/user.entity';
 import { AuditService } from '../../src/modules/audit/audit.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
 const ACTOR_ID = '22222222-2222-2222-2222-222222222222';
@@ -82,6 +83,10 @@ describe('MeetingsService', () => {
     record: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockOutboxService = {
+    emit: jest.fn().mockResolvedValue({}),
+  };
+
   const mockTransactionManager = {
     create: jest.fn(),
     save: jest.fn(),
@@ -106,6 +111,7 @@ describe('MeetingsService', () => {
         { provide: getRepositoryToken(ProjectMember), useValue: mockMemberRepo },
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: OutboxService, useValue: mockOutboxService },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();

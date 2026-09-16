@@ -12,6 +12,7 @@ import { RequirementRevision } from '../../src/modules/requirements/entities/req
 import { Project } from '../../src/modules/projects/entities/project.entity';
 import { ProjectRole } from '../../src/modules/projects/entities/project-member.entity';
 import { AuditService } from '../../src/modules/audit/audit.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
 const ACTOR_ID = '22222222-2222-2222-2222-222222222222';
@@ -64,6 +65,10 @@ describe('RequirementsService', () => {
     record: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockOutboxService = {
+    emit: jest.fn().mockResolvedValue({}),
+  };
+
   const mockTransactionManager = {
     query: jest.fn(),
     create: jest.fn(),
@@ -86,6 +91,7 @@ describe('RequirementsService', () => {
         { provide: getRepositoryToken(RequirementRevision), useValue: mockRevisionRepo },
         { provide: getRepositoryToken(Project), useValue: mockProjectRepo },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: OutboxService, useValue: mockOutboxService },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();

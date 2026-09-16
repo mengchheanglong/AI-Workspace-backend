@@ -16,6 +16,7 @@ import { CreateDecisionDto } from './dto/create-decision.dto';
 import { UpdateDecisionDto } from './dto/update-decision.dto';
 import { ListDecisionsQueryDto } from './dto/list-decisions-query.dto';
 import { AuditService } from '../audit/audit.service';
+import { OutboxService } from '../ingestion/outbox.service';
 
 const SORT_COLUMN_MAP: Record<string, string> = {
   number: 'decision.number',
@@ -41,6 +42,7 @@ export class DecisionsService {
     @InjectRepository(Requirement)
     private readonly requirementRepository: Repository<Requirement>,
     private readonly auditService: AuditService,
+    private readonly outboxService: OutboxService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -97,6 +99,22 @@ export class DecisionsService {
         changedBy: actorId,
       });
       await manager.save(DecisionRevision, revision);
+
+      await this.outboxService.emit(manager, {
+        projectId,
+        eventType: 'DECISION_CREATED',
+        payload: {
+          decisionId: saved.id,
+          revision: 1,
+          title: saved.title,
+          status: saved.status,
+          category: 'ARCHITECTURE',
+          context: saved.rationale,
+          decision: saved.decisionText,
+          consequences: null,
+        },
+        dedupeKey: `decision:${saved.id}:1:created`,
+      });
 
       await this.auditService.record({
         projectId,
@@ -218,6 +236,22 @@ export class DecisionsService {
     });
     await this.revisionRepository.save(revision);
 
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'DECISION_UPDATED',
+      payload: {
+        decisionId: saved.id,
+        revision: saved.version,
+        title: saved.title,
+        status: saved.status,
+        category: 'ARCHITECTURE',
+        context: saved.rationale,
+        decision: saved.decisionText,
+        consequences: null,
+      },
+      dedupeKey: `decision:${saved.id}:${saved.version}:updated`,
+    });
+
     // Extra auditing when modifying an accepted decision
     const action = isAccepted ? 'ACCEPTED_DECISION_UPDATED' : 'DECISION_UPDATED';
     await this.auditService.record({
@@ -252,6 +286,15 @@ export class DecisionsService {
     decision.deletedAt = new Date();
     decision.updatedBy = actorId;
     await this.decisionRepository.save(decision);
+
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'DECISION_DELETED',
+      payload: {
+        decisionId: decision.id,
+      },
+      dedupeKey: `decision:${decision.id}:deleted`,
+    });
 
     await this.auditService.record({
       projectId,

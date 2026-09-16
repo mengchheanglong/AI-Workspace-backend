@@ -16,6 +16,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { AuditService } from '../audit/audit.service';
+import { OutboxService } from '../ingestion/outbox.service';
 
 const SORT_COLUMN_MAP: Record<string, string> = {
   number: 'task.number',
@@ -41,6 +42,7 @@ export class TasksService {
     @InjectRepository(Meeting)
     private readonly meetingRepository: Repository<Meeting>,
     private readonly auditService: AuditService,
+    private readonly outboxService: OutboxService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -85,6 +87,21 @@ export class TasksService {
       });
 
       const saved = await manager.save(Task, task);
+
+      await this.outboxService.emit(manager, {
+        projectId,
+        eventType: 'TASK_CREATED',
+        payload: {
+          taskId: saved.id,
+          revision: 1,
+          title: saved.title,
+          description: saved.description,
+          status: saved.status,
+          priority: saved.priority,
+          dueDate: saved.dueDate,
+        },
+        dedupeKey: `task:${saved.id}:1:created`,
+      });
 
       await this.auditService.record({
         projectId,
@@ -210,10 +227,24 @@ export class TasksService {
     if (dto.assigneeId !== undefined) task.assigneeId = dto.assigneeId;
     if (dto.dueDate !== undefined) task.dueDate = dto.dueDate;
     if (dto.requirementId !== undefined) task.requirementId = dto.requirementId;
-    if (dto.sourceMeetingId !== undefined) task.sourceMeetingId = dto.sourceMeetingId;
     task.updatedBy = actorId;
 
     const saved = await this.taskRepository.save(task);
+
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'TASK_UPDATED',
+      payload: {
+        taskId: saved.id,
+        revision: saved.version,
+        title: saved.title,
+        description: saved.description,
+        status: saved.status,
+        priority: saved.priority,
+        dueDate: saved.dueDate,
+      },
+      dedupeKey: `task:${saved.id}:${saved.version}:updated`,
+    });
 
     await this.auditService.record({
       projectId,
@@ -271,6 +302,15 @@ export class TasksService {
     task.deletedAt = new Date();
     task.updatedBy = actorId;
     await this.taskRepository.save(task);
+
+    await this.outboxService.emit({
+      projectId,
+      eventType: 'TASK_DELETED',
+      payload: {
+        taskId: task.id,
+      },
+      dedupeKey: `task:${task.id}:deleted`,
+    });
 
     await this.auditService.record({
       projectId,
