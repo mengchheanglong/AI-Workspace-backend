@@ -160,19 +160,6 @@ export class RequirementsService {
       });
     }
 
-    // Snapshot current state as a revision before applying changes
-    const revision = this.revisionRepository.create({
-      requirementId: requirement.id,
-      version: requirement.version,
-      title: requirement.title,
-      description: requirement.description,
-      acceptanceCriteria: requirement.acceptanceCriteria,
-      status: requirement.status,
-      priority: requirement.priority,
-      changedBy: actorId,
-    });
-    await this.revisionRepository.save(revision);
-
     // Apply updates
     if (dto.title !== undefined) requirement.title = dto.title.trim();
     if (dto.description !== undefined) requirement.description = dto.description.trim();
@@ -184,6 +171,19 @@ export class RequirementsService {
     requirement.updatedBy = actorId;
 
     const saved = await this.requirementRepository.save(requirement);
+
+    // Snapshot updated state as a revision
+    const revision = this.revisionRepository.create({
+      requirementId: saved.id,
+      version: saved.version,
+      title: saved.title,
+      description: saved.description,
+      acceptanceCriteria: saved.acceptanceCriteria,
+      status: saved.status,
+      priority: saved.priority,
+      changedBy: actorId,
+    });
+    await this.revisionRepository.save(revision);
 
     await this.auditService.record({
       projectId,

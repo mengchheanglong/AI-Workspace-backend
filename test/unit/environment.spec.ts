@@ -42,4 +42,42 @@ describe('Environment validation', () => {
       validateEnvironment({ ...valid, DATABASE_URL: 'very-private-secret' }),
     ).not.toThrow('very-private-secret');
   });
+
+  it('accepts empty string for optional admin credentials and treats as undefined', () => {
+    const config = validateEnvironment({
+      ...valid,
+      INITIAL_ADMIN_EMAIL: '',
+      INITIAL_ADMIN_PASSWORD: '',
+    });
+    expect(config.INITIAL_ADMIN_EMAIL).toBeUndefined();
+    expect(config.INITIAL_ADMIN_PASSWORD).toBeUndefined();
+  });
+
+  it('accepts valid admin credentials when both are provided', () => {
+    const config = validateEnvironment({
+      ...valid,
+      INITIAL_ADMIN_EMAIL: 'admin@example.com',
+      INITIAL_ADMIN_PASSWORD: 'admin-password-123',
+    });
+    expect(config.INITIAL_ADMIN_EMAIL).toBe('admin@example.com');
+    expect(config.INITIAL_ADMIN_PASSWORD).toBe('admin-password-123');
+  });
+
+  it('rejects when only one admin bootstrap credential is provided', () => {
+    expect(() =>
+      validateEnvironment({
+        ...valid,
+        INITIAL_ADMIN_EMAIL: 'admin@example.com',
+        INITIAL_ADMIN_PASSWORD: '',
+      }),
+    ).toThrow('INITIAL_ADMIN_PASSWORD');
+
+    expect(() =>
+      validateEnvironment({
+        ...valid,
+        INITIAL_ADMIN_EMAIL: '',
+        INITIAL_ADMIN_PASSWORD: 'admin-password-123',
+      }),
+    ).toThrow('INITIAL_ADMIN_EMAIL');
+  });
 });

@@ -25,12 +25,33 @@ export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService<Environment, true>);
   app.setGlobalPrefix('api/v1');
   app.use(cookieParser());
+  app.use(helmet());
   app.use((_: Request, response: Response, next: NextFunction) => {
     response.setHeader('x-request-id', randomUUID());
     next();
   });
-  app.use(helmet());
-  app.enableCors({ origin: config.get('APP_ORIGIN', { infer: true }), credentials: true });
+  const nodeEnv = config.get('NODE_ENV', { infer: true });
+  const configuredOrigin = config.get('APP_ORIGIN', { infer: true });
+  const allowedOrigins =
+    nodeEnv === 'development'
+      ? Array.from(
+          new Set([
+            configuredOrigin,
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:3002',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:3001',
+            'http://127.0.0.1:3002',
+          ]),
+        )
+      : configuredOrigin;
+
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+    exposedHeaders: ['x-csrf-token', 'x-request-id'],
+  });
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({

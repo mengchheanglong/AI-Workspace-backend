@@ -126,109 +126,131 @@ async function seed() {
     }
 
     // Requirements for Project A
-    const req1 = await reqRepo.save(
-      reqRepo.create({
-        projectId: projectA.id,
-        number: 1,
-        title: 'User Authentication & Session Management',
-        description: 'Implement server-side cookie sessions with Argon2id and CSRF protection.',
-        acceptanceCriteria:
-          'Users can log in, receive HttpOnly session cookie, and pass CSRF verification.',
-        status: RequirementStatus.APPROVED,
-        priority: Priority.HIGH,
-        createdBy: aliceUser.id,
-        updatedBy: aliceUser.id,
-      }),
-    );
+    let req1 = await reqRepo.findOneBy({ projectId: projectA.id, number: 1 });
+    if (!req1) {
+      req1 = await reqRepo.save(
+        reqRepo.create({
+          projectId: projectA.id,
+          number: 1,
+          title: 'User Authentication & Session Management',
+          description: 'Implement server-side cookie sessions with Argon2id and CSRF protection.',
+          acceptanceCriteria:
+            'Users can log in, receive HttpOnly session cookie, and pass CSRF verification.',
+          status: RequirementStatus.APPROVED,
+          priority: Priority.HIGH,
+          createdBy: aliceUser.id,
+          updatedBy: aliceUser.id,
+        }),
+      );
+    }
 
-    const req2 = await reqRepo.save(
-      reqRepo.create({
-        projectId: projectA.id,
-        number: 2,
-        title: 'Document Storage & File Validation',
-        description:
-          'Support secure multipart upload with magic byte verification for PDF and DOCX.',
-        acceptanceCriteria:
-          'Files up to 20 MiB are verified, stored privately, and streaming downloads are secure.',
-        status: RequirementStatus.IN_PROGRESS,
-        priority: Priority.MEDIUM,
-        createdBy: aliceUser.id,
-        updatedBy: aliceUser.id,
-      }),
-    );
+    let req2 = await reqRepo.findOneBy({ projectId: projectA.id, number: 2 });
+    if (!req2) {
+      req2 = await reqRepo.save(
+        reqRepo.create({
+          projectId: projectA.id,
+          number: 2,
+          title: 'Document Storage & File Validation',
+          description:
+            'Support secure multipart upload with magic byte verification for PDF and DOCX.',
+          acceptanceCriteria:
+            'Files up to 20 MiB are verified, stored privately, and streaming downloads are secure.',
+          status: RequirementStatus.IN_PROGRESS,
+          priority: Priority.MEDIUM,
+          createdBy: aliceUser.id,
+          updatedBy: aliceUser.id,
+        }),
+      );
+    }
 
-    await reqRepo.save(
-      reqRepo.create({
-        projectId: projectA.id,
-        number: 3,
-        title: 'Real-Time Collaboration Investigation',
-        description: 'Explore WebSocket / SSE architecture for concurrent updates.',
-        acceptanceCriteria: 'Evaluate performance overhead and latency impacts.',
-        status: RequirementStatus.DRAFT,
-        priority: Priority.LOW,
-        createdBy: bobUser.id,
-        updatedBy: bobUser.id,
-      }),
-    );
+    let req3 = await reqRepo.findOneBy({ projectId: projectA.id, number: 3 });
+    if (!req3) {
+      req3 = await reqRepo.save(
+        reqRepo.create({
+          projectId: projectA.id,
+          number: 3,
+          title: 'Real-Time Collaboration Investigation',
+          description: 'Explore WebSocket / SSE architecture for concurrent updates.',
+          acceptanceCriteria: 'Evaluate performance overhead and latency impacts.',
+          status: RequirementStatus.DRAFT,
+          priority: Priority.LOW,
+          createdBy: bobUser.id,
+          updatedBy: bobUser.id,
+        }),
+      );
+    }
 
     // Decisions for Project A
-    await decRepo.save(
-      decRepo.create({
-        projectId: projectA.id,
-        number: 1,
-        title: 'Adopt NestJS and Modular Monolith Architecture',
-        decisionText: 'Build the entire backend as a modular NestJS monolith with PostgreSQL.',
-        rationale: 'Simplifies local development and fulfills project architecture guidelines.',
-        status: DecisionStatus.ACCEPTED,
-        decidedAt: new Date(),
-        decidedBy: aliceUser.id,
-        createdBy: aliceUser.id,
-        updatedBy: aliceUser.id,
-      }),
-    );
+    let dec1 = await decRepo.findOneBy({ projectId: projectA.id, number: 1 });
+    if (!dec1) {
+      dec1 = await decRepo.save(
+        decRepo.create({
+          projectId: projectA.id,
+          number: 1,
+          title: 'Adopt NestJS and Modular Monolith Architecture',
+          decisionText: 'Build the entire backend as a modular NestJS monolith with PostgreSQL.',
+          rationale: 'Simplifies local development and fulfills project architecture guidelines.',
+          status: DecisionStatus.ACCEPTED,
+          decidedAt: new Date(),
+          decidedBy: aliceUser.id,
+          createdBy: aliceUser.id,
+          updatedBy: aliceUser.id,
+        }),
+      );
+    }
 
-    await decRepo.save(
-      decRepo.create({
-        projectId: projectA.id,
-        number: 2,
-        title: 'Use DeepSeek V4 Pro with Separate OpenAI Embeddings',
-        decisionText:
-          'Configure DeepSeek V4 Pro for LLM generation and text-embedding-3-small for embeddings.',
-        rationale: 'Provides high quality reasoning while separating retrieval dependencies.',
-        status: DecisionStatus.PROPOSED,
-        createdBy: bobUser.id,
-        updatedBy: bobUser.id,
-      }),
-    );
+    let dec2 = await decRepo.findOneBy({ projectId: projectA.id, number: 2 });
+    if (!dec2) {
+      dec2 = await decRepo.save(
+        decRepo.create({
+          projectId: projectA.id,
+          number: 2,
+          title: 'Use DeepSeek V4 Pro with Separate OpenAI Embeddings',
+          decisionText:
+            'Configure DeepSeek V4 Pro for LLM generation and text-embedding-3-small for embeddings.',
+          rationale: 'Provides high quality reasoning while separating retrieval dependencies.',
+          status: DecisionStatus.PROPOSED,
+          createdBy: bobUser.id,
+          updatedBy: bobUser.id,
+        }),
+      );
+    }
 
     // Meeting for Project A
-    const meetingA = await meetingRepo.save(
-      meetingRepo.create({
-        projectId: projectA.id,
-        title: 'Sprint Planning & Architecture Kickoff',
-        startsAt: new Date(Date.now() - 3600000 * 24),
-        endsAt: new Date(Date.now() - 3600000 * 23),
-        agenda: 'Review Phase 1 scope and assign initial tasks.',
-        notes:
-          'Agreed that all Phase 1 core CRUD operations must be completed before starting Phase 2 AI workers.',
-        transcriptText:
-          'Alice: Let us complete Milestone P1-06 and P1-07 today. Bob: Sounds great!',
-        transcriptVersion: 1,
-        summary: 'Team aligned on completing Phase 1 quality gates and release readiness.',
-        createdBy: aliceUser.id,
-        updatedBy: aliceUser.id,
-      }),
-    );
+    let meetingA = await meetingRepo.findOneBy({
+      projectId: projectA.id,
+      title: 'Sprint Planning & Architecture Kickoff',
+    });
+    if (!meetingA) {
+      meetingA = await meetingRepo.save(
+        meetingRepo.create({
+          projectId: projectA.id,
+          title: 'Sprint Planning & Architecture Kickoff',
+          startsAt: new Date(Date.now() - 3600000 * 24),
+          endsAt: new Date(Date.now() - 3600000 * 23),
+          agenda: 'Review Phase 1 scope and assign initial tasks.',
+          notes:
+            'Agreed that all Phase 1 core CRUD operations must be completed before starting Phase 2 AI workers.',
+          transcriptText:
+            'Alice: Let us complete Milestone P1-06 and P1-07 today. Bob: Sounds great!',
+          transcriptVersion: 1,
+          summary: 'Team aligned on completing Phase 1 quality gates and release readiness.',
+          createdBy: aliceUser.id,
+          updatedBy: aliceUser.id,
+        }),
+      );
+    }
 
-    await attendeeRepo.save([
-      attendeeRepo.create({ meetingId: meetingA.id, userId: aliceUser.id }),
-      attendeeRepo.create({ meetingId: meetingA.id, userId: bobUser.id }),
-    ]);
+    for (const u of [aliceUser, bobUser]) {
+      const existingAtt = await attendeeRepo.findOneBy({ meetingId: meetingA.id, userId: u.id });
+      if (!existingAtt) {
+        await attendeeRepo.save(attendeeRepo.create({ meetingId: meetingA.id, userId: u.id }));
+      }
+    }
 
     // Tasks for Project A
-    await taskRepo.save([
-      taskRepo.create({
-        projectId: projectA.id,
+    const tasksAData = [
+      {
         number: 1,
         title: 'Configure Argon2id password hashing',
         description: 'Integrate Argon2 with salt and verify login credentials.',
@@ -239,9 +261,8 @@ async function seed() {
         sourceMeetingId: meetingA.id,
         createdBy: aliceUser.id,
         updatedBy: aliceUser.id,
-      }),
-      taskRepo.create({
-        projectId: projectA.id,
+      },
+      {
         number: 2,
         title: 'Implement LocalStorageService driver',
         description: 'Store files in ./var/uploads with path traversal protection.',
@@ -252,9 +273,8 @@ async function seed() {
         sourceMeetingId: meetingA.id,
         createdBy: aliceUser.id,
         updatedBy: aliceUser.id,
-      }),
-      taskRepo.create({
-        projectId: projectA.id,
+      },
+      {
         number: 3,
         title: 'Setup PostgreSQL pgvector and database migrations',
         description: 'Create initial database schema with TypeORM migrations.',
@@ -264,9 +284,8 @@ async function seed() {
         requirementId: req1.id,
         createdBy: bobUser.id,
         updatedBy: bobUser.id,
-      }),
-      taskRepo.create({
-        projectId: projectA.id,
+      },
+      {
         number: 4,
         title: 'Implement Dashboard and Search integration',
         description: 'Aggregate task progress and enable unified multi-entity keyword search.',
@@ -276,9 +295,8 @@ async function seed() {
         requirementId: req1.id,
         createdBy: aliceUser.id,
         updatedBy: aliceUser.id,
-      }),
-      taskRepo.create({
-        projectId: projectA.id,
+      },
+      {
         number: 5,
         title: 'Fix overdue security dependency update',
         description: 'Update critical vulnerabilities in dependencies.',
@@ -288,13 +306,19 @@ async function seed() {
         dueDate: '2020-01-01', // Explicitly overdue
         createdBy: aliceUser.id,
         updatedBy: aliceUser.id,
-      }),
-    ]);
+      },
+    ];
+
+    for (const t of tasksAData) {
+      const existingTask = await taskRepo.findOneBy({ projectId: projectA.id, number: t.number });
+      if (!existingTask) {
+        await taskRepo.save(taskRepo.create({ ...t, projectId: projectA.id }));
+      }
+    }
 
     // Documents for Project A
-    await docRepo.save([
-      docRepo.create({
-        projectId: projectA.id,
+    const docsAData = [
+      {
         title: 'System Architecture Document',
         description: 'Detailed modular monolith architecture overview.',
         originalFilename: 'architecture.pdf',
@@ -306,9 +330,8 @@ async function seed() {
         processingStatus: ProcessingStatus.PENDING,
         createdBy: aliceUser.id,
         updatedBy: aliceUser.id,
-      }),
-      docRepo.create({
-        projectId: projectA.id,
+      },
+      {
         title: 'REST API Specification',
         description: 'Endpoints and data transfer objects for all Phase 1 features.',
         originalFilename: 'api-spec.md',
@@ -320,35 +343,56 @@ async function seed() {
         processingStatus: ProcessingStatus.COMPLETED,
         createdBy: bobUser.id,
         updatedBy: bobUser.id,
-      }),
-    ]);
+      },
+    ];
+
+    for (const d of docsAData) {
+      const existingDoc = await docRepo.findOneBy({
+        projectId: projectA.id,
+        originalFilename: d.originalFilename,
+      });
+      if (!existingDoc) {
+        await docRepo.save(docRepo.create({ ...d, projectId: projectA.id }));
+      }
+    }
 
     // Audit logs for Project A
-    await auditRepo.save([
-      auditRepo.create({
+    const auditsAData = [
+      {
         projectId: projectA.id,
         actorId: aliceUser.id,
         action: 'PROJECT_CREATED',
         entityType: 'PROJECT',
         entityId: projectA.id,
         metadata: { name: projectA.name, key: projectA.key },
-      }),
-      auditRepo.create({
+      },
+      {
         projectId: projectA.id,
         actorId: aliceUser.id,
         action: 'CREATE_REQUIREMENT',
         entityType: 'REQUIREMENT',
         entityId: req1.id,
         metadata: { number: 1, title: req1.title },
-      }),
-      auditRepo.create({
+      },
+      {
         projectId: projectA.id,
         actorId: bobUser.id,
         action: 'CREATE_TASK',
         entityType: 'TASK',
         metadata: { number: 3, title: 'Setup PostgreSQL pgvector' },
-      }),
-    ]);
+      },
+    ];
+
+    for (const a of auditsAData) {
+      const existingLog = await auditRepo.findOneBy({
+        projectId: a.projectId,
+        action: a.action,
+        entityType: a.entityType,
+      });
+      if (!existingLog) {
+        await auditRepo.save(auditRepo.create(a));
+      }
+    }
 
     // ── Project 2: Beta Security Workspace (SEC) ─────────────────────
     console.log('Seeding Project 2: Beta Security Workspace (SEC)...');
@@ -379,43 +423,56 @@ async function seed() {
       }
     }
 
-    await reqRepo.save(
-      reqRepo.create({
-        projectId: projectB.id,
-        number: 1,
-        title: 'Strict Network Isolation & TLS 1.3',
-        description: 'Ensure isolated subnets and encrypted in-transit communications.',
-        status: RequirementStatus.APPROVED,
-        priority: Priority.URGENT,
-        createdBy: charlieUser.id,
-        updatedBy: charlieUser.id,
-      }),
-    );
+    const existingReqB = await reqRepo.findOneBy({ projectId: projectB.id, number: 1 });
+    if (!existingReqB) {
+      await reqRepo.save(
+        reqRepo.create({
+          projectId: projectB.id,
+          number: 1,
+          title: 'Strict Network Isolation & TLS 1.3',
+          description: 'Ensure isolated subnets and encrypted in-transit communications.',
+          status: RequirementStatus.APPROVED,
+          priority: Priority.URGENT,
+          createdBy: charlieUser.id,
+          updatedBy: charlieUser.id,
+        }),
+      );
+    }
 
-    await taskRepo.save(
-      taskRepo.create({
-        projectId: projectB.id,
-        number: 1,
-        title: 'Audit infrastructure security groups',
-        description: 'Verify only port 3000 and 5432 are accessible internally.',
-        status: TaskStatus.IN_PROGRESS,
-        priority: Priority.HIGH,
-        assigneeId: charlieUser.id,
-        createdBy: charlieUser.id,
-        updatedBy: charlieUser.id,
-      }),
-    );
+    const existingTaskB = await taskRepo.findOneBy({ projectId: projectB.id, number: 1 });
+    if (!existingTaskB) {
+      await taskRepo.save(
+        taskRepo.create({
+          projectId: projectB.id,
+          number: 1,
+          title: 'Audit infrastructure security groups',
+          description: 'Verify only port 3000 and 5432 are accessible internally.',
+          status: TaskStatus.IN_PROGRESS,
+          priority: Priority.HIGH,
+          assigneeId: charlieUser.id,
+          createdBy: charlieUser.id,
+          updatedBy: charlieUser.id,
+        }),
+      );
+    }
 
-    await auditRepo.save(
-      auditRepo.create({
-        projectId: projectB.id,
-        actorId: charlieUser.id,
-        action: 'PROJECT_CREATED',
-        entityType: 'PROJECT',
-        entityId: projectB.id,
-        metadata: { name: projectB.name, key: projectB.key },
-      }),
-    );
+    const existingAuditB = await auditRepo.findOneBy({
+      projectId: projectB.id,
+      action: 'PROJECT_CREATED',
+      entityType: 'PROJECT',
+    });
+    if (!existingAuditB) {
+      await auditRepo.save(
+        auditRepo.create({
+          projectId: projectB.id,
+          actorId: charlieUser.id,
+          action: 'PROJECT_CREATED',
+          entityType: 'PROJECT',
+          entityId: projectB.id,
+          metadata: { name: projectB.name, key: projectB.key },
+        }),
+      );
+    }
 
     console.log('✅ Seeding completed successfully!');
     console.log('Seed Summary:');
