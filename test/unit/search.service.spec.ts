@@ -147,6 +147,9 @@ describe('SearchService (Unit)', () => {
       mockDocRepo as unknown as import('typeorm').Repository<
         import('../../src/modules/documents/entities/document.entity').Document
       >,
+      {
+        retrieve: jest.fn().mockResolvedValue([]),
+      } as unknown as import('../../src/modules/ai/retrieval/retrieval.service').RetrievalService,
     );
   });
 

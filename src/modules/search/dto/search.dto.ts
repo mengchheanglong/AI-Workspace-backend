@@ -25,6 +25,15 @@ export class SearchQueryDto {
   type?: SearchEntityType;
 
   @ApiPropertyOptional({
+    description: 'Search mode: keyword (default), semantic, or hybrid',
+    enum: ['keyword', 'semantic', 'hybrid'],
+    default: 'keyword',
+  })
+  @IsOptional()
+  @IsEnum(['keyword', 'semantic', 'hybrid'])
+  mode?: 'keyword' | 'semantic' | 'hybrid';
+
+  @ApiPropertyOptional({
     description: 'Filter by status (e.g. APPROVED, IN_PROGRESS, TODO, ACCEPTED)',
     example: 'APPROVED',
   })

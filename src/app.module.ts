@@ -19,6 +19,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SearchModule } from './modules/search/search.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { OutboxModule } from './modules/ingestion/outbox.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { OutboxModule } from './modules/ingestion/outbox.module';
     SearchModule,
     OutboxModule,
     IngestionModule,
+    AiModule,
   ],
 })
 export class AppModule {}

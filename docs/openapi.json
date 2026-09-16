@@ -2839,6 +2839,21 @@
             }
           },
           {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "description": "Search mode: keyword (default), semantic, or hybrid",
+            "schema": {
+              "default": "keyword",
+              "type": "string",
+              "enum": [
+                "keyword",
+                "semantic",
+                "hybrid"
+              ]
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -3110,6 +3125,284 @@
         "summary": "List background ingestion and reindexing jobs",
         "tags": [
           "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/ai/conversations": {
+      "get": {
+        "operationId": "AiController_listConversations",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversations returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List user conversations in the project",
+        "tags": [
+          "AI Assistant"
+        ]
+      },
+      "post": {
+        "operationId": "AiController_createConversation",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conversation created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Create a new conversation",
+        "tags": [
+          "AI Assistant"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/ai/conversations/{id}": {
+      "get": {
+        "operationId": "AiController_getConversation",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation details returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Get conversation details",
+        "tags": [
+          "AI Assistant"
+        ]
+      },
+      "delete": {
+        "operationId": "AiController_deleteConversation",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Conversation deleted"
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Delete a conversation",
+        "tags": [
+          "AI Assistant"
+        ]
+      }
+    },
+    "/api/v1/projects/{projectId}/ai/conversations/{id}/messages": {
+      "get": {
+        "operationId": "AiController_listMessages",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Messages returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatMessageResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List messages in a conversation",
+        "tags": [
+          "AI Assistant"
+        ]
+      },
+      "post": {
+        "operationId": "AiController_postMessage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Message sent and assistant response generated"
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Post a message and receive an AI assistant response",
+        "tags": [
+          "AI Assistant"
         ]
       }
     }
@@ -4039,6 +4332,222 @@
         "required": [
           "data",
           "meta"
+        ]
+      },
+      "ConversationResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "85bb1fd2-d5cb-42a1-8d2a-43d96924b17f"
+          },
+          "projectId": {
+            "type": "string",
+            "example": "85bb1fd2-d5cb-42a1-8d2a-43d96924b17f"
+          },
+          "userId": {
+            "type": "string",
+            "example": "85bb1fd2-d5cb-42a1-8d2a-43d96924b17f"
+          },
+          "title": {
+            "type": "string",
+            "example": "Sprint Architecture Q&A"
+          },
+          "defaultMode": {
+            "type": "string",
+            "enum": [
+              "PM",
+              "DEVELOPER",
+              "QA",
+              "DX",
+              "INFRASTRUCTURE",
+              "PRESENTATION"
+            ],
+            "example": "PM"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-16T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-09-16T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "userId",
+          "title",
+          "defaultMode",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateConversationDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Sprint Architecture Q&A",
+            "maxLength": 200
+          },
+          "defaultMode": {
+            "type": "string",
+            "enum": [
+              "PM",
+              "DEVELOPER",
+              "QA",
+              "DX",
+              "INFRASTRUCTURE",
+              "PRESENTATION"
+            ],
+            "default": "PM"
+          }
+        }
+      },
+      "ChatMessageResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "32cb5e48-8dfa-45c1-8419-756da3df4f32"
+          },
+          "conversationId": {
+            "type": "string",
+            "example": "85bb1fd2-d5cb-42a1-8d2a-43d96924b17f"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "example": "user"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "PM",
+              "DEVELOPER",
+              "QA",
+              "DX",
+              "INFRASTRUCTURE",
+              "PRESENTATION"
+            ],
+            "example": "PM"
+          },
+          "content": {
+            "type": "string",
+            "example": "What are the key decisions made regarding the database architecture?"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "FAILED"
+            ],
+            "example": "COMPLETED"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chunkId": {
+                  "type": "string"
+                },
+                "sourceId": {
+                  "type": "string"
+                },
+                "sourceType": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "number"
+                },
+                "locator": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "score": {
+                  "type": "number",
+                  "nullable": true
+                },
+                "snippet": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "modelName": {
+            "type": "object",
+            "example": "deepseek-v4-pro",
+            "nullable": true
+          },
+          "promptTokens": {
+            "type": "object",
+            "example": 450,
+            "nullable": true
+          },
+          "completionTokens": {
+            "type": "object",
+            "example": 180,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-16T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "conversationId",
+          "role",
+          "mode",
+          "content",
+          "status",
+          "citations",
+          "createdAt"
+        ]
+      },
+      "PostMessageDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "What are the key decisions made regarding the database architecture?"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "PM",
+              "DEVELOPER",
+              "QA",
+              "DX",
+              "INFRASTRUCTURE",
+              "PRESENTATION"
+            ]
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "DOCUMENT",
+              "REQUIREMENT",
+              "DECISION",
+              "TASK",
+              "MEETING"
+            ]
+          }
+        },
+        "required": [
+          "content"
         ]
       }
     }
