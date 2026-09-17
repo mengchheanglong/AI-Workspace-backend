@@ -3,25 +3,45 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectMember } from '../projects/entities/project-member.entity';
 import { Project } from '../projects/entities/project.entity';
+import { Requirement } from '../requirements/entities/requirement.entity';
+import { Meeting } from '../meetings/entities/meeting.entity';
+import { Task } from '../tasks/entities/task.entity';
+import { Decision } from '../decisions/entities/decision.entity';
 import { IngestionModule } from '../ingestion/ingestion.module';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 import { ContextAssembler } from './context/context-assembler';
 import { ChatMessage } from './entities/chat-message.entity';
 import { Conversation } from './entities/conversation.entity';
+import { AIProposal } from './entities/proposal.entity';
+import { ProposalCommit } from './entities/proposal-commit.entity';
 import { DeepSeekLlmProvider, MockLlmProvider } from './llm';
+import { ProposalsController } from './proposals.controller';
+import { ProposalsService } from './proposals.service';
 import { RetrievalService } from './retrieval/retrieval.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Conversation, ChatMessage, Project, ProjectMember]),
+    TypeOrmModule.forFeature([
+      Conversation,
+      ChatMessage,
+      AIProposal,
+      ProposalCommit,
+      Project,
+      ProjectMember,
+      Requirement,
+      Meeting,
+      Task,
+      Decision,
+    ]),
     IngestionModule,
   ],
-  controllers: [AiController],
+  controllers: [AiController, ProposalsController],
   providers: [
     RetrievalService,
     ContextAssembler,
     AiService,
+    ProposalsService,
     {
       provide: 'LLM_PROVIDER',
       useFactory: (configService: ConfigService) => {
@@ -39,6 +59,6 @@ import { RetrievalService } from './retrieval/retrieval.service';
       inject: [ConfigService],
     },
   ],
-  exports: [AiService, RetrievalService, ContextAssembler, 'LLM_PROVIDER'],
+  exports: [AiService, ProposalsService, RetrievalService, ContextAssembler, 'LLM_PROVIDER'],
 })
 export class AiModule {}

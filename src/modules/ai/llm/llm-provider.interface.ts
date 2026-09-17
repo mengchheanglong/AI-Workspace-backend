@@ -21,6 +21,25 @@ export interface GenerateAnswerResult {
   completionTokens: number;
 }
 
+export interface GenerateStructuredOutputParams {
+  systemPrompt: string;
+  userPrompt: string;
+  schemaDescription?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface GenerateStructuredOutputResult<T> {
+  data: T;
+  rawJson: string;
+  modelName: string;
+  promptTokens: number;
+  completionTokens: number;
+}
+
 export interface LlmProvider {
   generateAnswer(params: GenerateAnswerParams): Promise<GenerateAnswerResult>;
+  generateStructuredOutput<T>(
+    params: GenerateStructuredOutputParams,
+  ): Promise<GenerateStructuredOutputResult<T>>;
 }
