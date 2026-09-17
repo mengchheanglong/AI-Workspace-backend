@@ -80,6 +80,20 @@ export interface MeetingPayload {
   actionItems?: unknown[] | null;
 }
 
+export interface GitHubIssuePayload {
+  issueId: string;
+  issueNumber: number;
+  title: string;
+  body?: string | null;
+  state: string;
+  htmlUrl: string;
+  authorLogin?: string | null;
+  labels?: string[] | null;
+  repositoryOwner?: string;
+  repositoryName?: string;
+  revision?: number;
+}
+
 @Injectable()
 export class IngestionService implements OnModuleInit {
   private readonly logger = new Logger(IngestionService.name);
@@ -352,6 +366,33 @@ export class IngestionService implements OnModuleInit {
     });
   }
 
+  async syncGitHubIssue(
+    projectId: string,
+    payload: GitHubIssuePayload,
+  ): Promise<KnowledgeSource | null> {
+    const extractedDoc = this.entityExtractor.extractGitHubIssue({
+      id: payload.issueId,
+      issueNumber: payload.issueNumber,
+      title: payload.title,
+      body: payload.body,
+      state: payload.state,
+      htmlUrl: payload.htmlUrl,
+      authorLogin: payload.authorLogin,
+      labels: payload.labels,
+      repositoryOwner: payload.repositoryOwner,
+      repositoryName: payload.repositoryName,
+    });
+
+    return this.processKnowledgeSource({
+      projectId,
+      sourceType: KnowledgeSourceType.GITHUB_ISSUE,
+      sourceId: payload.issueId,
+      sourceRevision: payload.revision ?? 1,
+      title: `[GitHub #${payload.issueNumber}] ${payload.title}`,
+      extractedDoc,
+    });
+  }
+
   private async processKnowledgeSource(params: {
     projectId: string;
     sourceType: KnowledgeSourceType;
@@ -499,6 +540,23 @@ export class IngestionService implements OnModuleInit {
       await tx.delete(KnowledgeChunk, {
         knowledgeSourceId: source.id,
       });
+    });
+  }
+
+  async deactivateSourcesByType(projectId: string, sourceType: KnowledgeSourceType): Promise<void> {
+    const sources = await this.sourceRepo.find({
+      where: { projectId, sourceType },
+    });
+
+    if (sources.length === 0) return;
+
+    await this.dataSource.transaction(async (tx) => {
+      const now = new Date();
+      for (const source of sources) {
+        source.deletedAt = now;
+        await tx.save(KnowledgeSource, source);
+        await tx.delete(KnowledgeChunk, { knowledgeSourceId: source.id });
+      }
     });
   }
 

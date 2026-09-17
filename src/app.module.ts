@@ -20,6 +20,7 @@ import { SearchModule } from './modules/search/search.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { OutboxModule } from './modules/ingestion/outbox.module';
 import { AiModule } from './modules/ai/ai.module';
+import { GitHubIntegrationModule } from './modules/integrations/github/github-integration.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { AiModule } from './modules/ai/ai.module';
     OutboxModule,
     IngestionModule,
     AiModule,
+    GitHubIntegrationModule,
   ],
 })
 export class AppModule {}

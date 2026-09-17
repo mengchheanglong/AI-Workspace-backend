@@ -176,4 +176,49 @@ export class EntityExtractor {
       },
     };
   }
+
+  extractGitHubIssue(issue: {
+    id: string;
+    issueNumber: number;
+    title: string;
+    body?: string | null;
+    state: string;
+    htmlUrl: string;
+    authorLogin?: string | null;
+    labels?: string[] | null;
+    repositoryOwner?: string;
+    repositoryName?: string;
+  }): ExtractedDocument {
+    const repoInfo =
+      issue.repositoryOwner && issue.repositoryName
+        ? ` (${issue.repositoryOwner}/${issue.repositoryName})`
+        : '';
+    const lines: string[] = [
+      `GitHub Issue #${issue.issueNumber}: ${issue.title}${repoInfo}`,
+      `State: ${issue.state.toUpperCase()} | Author: ${issue.authorLogin ?? 'Unknown'} | URL: ${issue.htmlUrl}`,
+    ];
+
+    if (issue.labels && issue.labels.length > 0) {
+      lines.push(`Labels: ${issue.labels.join(', ')}`);
+    }
+
+    const sections: { title?: string; content: string }[] = [];
+
+    if (issue.body) {
+      lines.push(`\nDescription:\n${issue.body}`);
+      sections.push({ title: 'Description', content: issue.body });
+    }
+
+    const text = lines.join('\n');
+    return {
+      text,
+      sections: sections.length > 0 ? sections : [{ content: text }],
+      metadata: {
+        charCount: text.length,
+        sourceType: 'GITHUB_ISSUE',
+        sourceId: issue.id,
+        title: `[GitHub #${issue.issueNumber}] ${issue.title}`,
+      },
+    };
+  }
 }
