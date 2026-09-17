@@ -38,6 +38,12 @@ const schema = z
     SWAGGER_ENABLED: booleanString.default(false),
     AI_ENABLED: booleanString.default(false),
     GITHUB_ENABLED: booleanString.default(false),
+    GITHUB_APP_ID: emptyStringToUndefined(z.string().optional()),
+    GITHUB_APP_PRIVATE_KEY_FILE: emptyStringToUndefined(z.string().optional()),
+    GITHUB_CLIENT_ID: emptyStringToUndefined(z.string().optional()),
+    GITHUB_CLIENT_SECRET: emptyStringToUndefined(z.string().optional()),
+    GITHUB_CALLBACK_STATE_SECRET: emptyStringToUndefined(z.string().optional()),
+    GITHUB_USE_MOCK: booleanString.default(false),
     REDIS_URL: z.string().default('redis://127.0.0.1:56379'),
     AI_LLM_PROVIDER: z.literal('deepseek').default('deepseek'),
     DEEPSEEK_API_KEY: emptyStringToUndefined(z.string().optional()),
@@ -51,12 +57,14 @@ const schema = z
     AI_DAILY_PROJECT_BUDGET_USD: emptyStringToUndefined(z.coerce.number().optional()),
   })
   .superRefine((value, context) => {
-    if (value.GITHUB_ENABLED) {
-      context.addIssue({
-        code: 'custom',
-        path: ['GITHUB_ENABLED'],
-        message: 'Available in Phase 2 Milestone P2-04, not this foundation.',
-      });
+    if (value.GITHUB_ENABLED && !value.GITHUB_USE_MOCK) {
+      if (!value.GITHUB_APP_ID && !value.GITHUB_CLIENT_ID) {
+        context.addIssue({
+          code: 'custom',
+          path: ['GITHUB_APP_ID'],
+          message: 'GITHUB_APP_ID or GITHUB_CLIENT_ID is required when GITHUB_ENABLED is true.',
+        });
+      }
     }
 
     if (value.AI_ENABLED) {
