@@ -3,6 +3,8 @@ import {
   ChatCompletionMessage,
   GenerateAnswerParams,
   GenerateAnswerResult,
+  GenerateStructuredOutputParams,
+  GenerateStructuredOutputResult,
   LlmProvider,
 } from './llm-provider.interface';
 import { CitationItem } from '../entities/chat-message.entity';
@@ -97,6 +99,84 @@ export class DeepSeekLlmProvider implements LlmProvider {
     }
   }
 
+  async generateStructuredOutput<T>(
+    params: GenerateStructuredOutputParams,
+  ): Promise<GenerateStructuredOutputResult<T>> {
+    const {
+      systemPrompt,
+      userPrompt,
+      schemaDescription,
+      temperature = 0.1,
+      maxTokens = 2000,
+    } = params;
+
+    const endpoint = `${this.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+
+    const fullSystemPrompt = schemaDescription
+      ? `${systemPrompt}\n\nYou must respond strictly with valid JSON matching this schema:\n${schemaDescription}`
+      : `${systemPrompt}\n\nYou must respond strictly with a valid JSON object.`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.modelName,
+          messages: [
+            { role: 'system', content: fullSystemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature,
+          max_tokens: maxTokens,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const status = response.status;
+        this.logger.error(`DeepSeek API returned HTTP status ${status} during structured output`);
+        throw new Error(`DeepSeek API request failed with status ${status}`);
+      }
+
+      const resData = (await response.json()) as DeepSeekApiResponse;
+      const rawJson = resData.choices?.[0]?.message?.content || '{}';
+
+      let parsed: T;
+      try {
+        parsed = JSON.parse(rawJson) as T;
+      } catch (error: unknown) {
+        this.logger.error(`Failed to parse DeepSeek structured JSON output: ${rawJson}`);
+        throw new Error('Invalid JSON received from AI provider', { cause: error });
+      }
+
+      return {
+        data: parsed,
+        rawJson,
+        modelName: resData.model || this.modelName,
+        promptTokens: resData.usage?.prompt_tokens ?? Math.ceil(fullSystemPrompt.length / 4),
+        completionTokens: resData.usage?.completion_tokens ?? Math.ceil(rawJson.length / 4),
+      };
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.error('DeepSeek API request timed out after 45s during structured output');
+        throw new Error('DeepSeek API request timed out', { cause: error });
+      }
+      this.logger.error(
+        `DeepSeek structured output error: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private extractCitations(
     content: string,
     evidence: GenerateAnswerParams['evidence'],
@@ -106,7 +186,6 @@ export class DeepSeekLlmProvider implements LlmProvider {
     }
 
     const citationMap = new Map<string, CitationItem>();
-    // Match [Evidence #1], [Evidence #2], [Evidence 1], Evidence #1
     const regex = /(?:\[Evidence\s*#?(\d+)\]|Evidence\s*#(\d+))/gi;
     let match: RegExpExecArray | null;
 
