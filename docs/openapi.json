@@ -2834,7 +2834,8 @@
                 "DECISION",
                 "TASK",
                 "MEETING",
-                "DOCUMENT"
+                "DOCUMENT",
+                "GITHUB_ISSUE"
               ]
             }
           },
@@ -2967,7 +2968,8 @@
                 "REQUIREMENT",
                 "DECISION",
                 "TASK",
-                "MEETING"
+                "MEETING",
+                "GITHUB_ISSUE"
               ]
             }
           },
@@ -4209,7 +4211,8 @@
               "DECISION",
               "TASK",
               "MEETING",
-              "DOCUMENT"
+              "DOCUMENT",
+              "GITHUB_ISSUE"
             ],
             "example": "REQUIREMENT"
           },
@@ -4280,6 +4283,10 @@
           "DOCUMENT": {
             "type": "number",
             "example": 2
+          },
+          "GITHUB_ISSUE": {
+            "type": "number",
+            "example": 0
           }
         },
         "required": [
@@ -4542,7 +4549,8 @@
               "REQUIREMENT",
               "DECISION",
               "TASK",
-              "MEETING"
+              "MEETING",
+              "GITHUB_ISSUE"
             ]
           }
         },

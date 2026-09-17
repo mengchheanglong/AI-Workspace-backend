@@ -1,0 +1,338 @@
+# Production Runbook & Operations Guide
+
+## 1. System Overview & Deployment Topology
+
+The **AI Workspace Backend** is an enterprise-grade collaborative workspace engine built with **NestJS**, **TypeScript (Strict Mode)**, **Express**, and **PostgreSQL 16** with **pgvector**. It provides centralized project tracking (Requirements, Decisions, Tasks, Meetings, Documents) tightly integrated with a secure, grounded AI retrieval-augmented generation (RAG) and transactional proposal confirmation engine.
+
+### 1.1 Architecture Topology
+
+```
+                         ┌───────────────────────────────────┐
+                         │   Client Apps / Browser UI        │
+                         │   (Cookie Auth + Double-Submit)   │
+                         └─────────────────┬─────────────────┘
+                                           │ HTTPS
+                                           ▼
+                         ┌───────────────────────────────────┐
+                         │       Reverse Proxy / Ingress     │
+                         │       (TLS Termination, Helmet)   │
+                         └─────────────────┬─────────────────┘
+                                           │ HTTP (Port 3000)
+                                           ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ NestJS Application Container                                                │
+│                                                                             │
+│  ┌───────────────────────┐  ┌─────────────────────────┐  ┌──────────────┐   │
+│  │ Core Domain Modules   │  │ Ingestion & CDC Outbox   │  │ AI & Context │   │
+│  │ (Auth, Projects, Docs,│  │ (Chunking, Vector Store, │  │ (Retrieval,  │   │
+│  │  Tasks, Decisions)    │  │  Transactional Outbox)   │  │  Proposals)  │   │
+│  └──────────┬────────────┘  └────────────┬────────────┘  └───────┬──────┘   │
+│             │                            │                       │          │
+└─────────────┼────────────────────────────┼───────────────────────┼──────────┘
+              │                            │                       │
+      TypeORM │ (Port 5432)                │                       │ HTTPS
+              ▼                            ▼                       ▼
+┌──────────────────────────────┐ ┌───────────────────┐ ┌──────────────────────┐
+│ PostgreSQL 16 + pgvector     │ │ Storage Driver    │ │ AI Model Providers   │
+│  - Relational Tables         │ │  - Local Files    │ │  - DeepSeek V4 Pro   │
+│  - HNSW Vector Indexes       │ │    (./var/uploads)│ │    (Reasoning/Chat)  │
+│  - GIN Full-Text Indexes     │ │  - S3 / MinIO     │ │  - OpenAI Embeddings │
+│  - CDC Outbox Queue          │ │    (Object Store) │ │    (3-small, 1536-d) │
+└──────────────────────────────┘ └───────────────────┘ └──────────────────────┘
+```
+
+### 1.2 Core Architectural Principles
+
+1. **Decoupled AI & Storage**: Core workspace operations function independently of AI availability. If AI providers are unavailable, standard CRUD and search fallback remain 100% operational.
+2. **Provider Separation**: Generation uses DeepSeek V4 Pro (`deepseek-v4-pro`); embeddings use OpenAI (`text-embedding-3-small`). DeepSeek credentials are never sent to embedding endpoints.
+3. **Transactional Proposals**: AI output is untrusted. Actionable suggestions (Tasks, Meeting summaries) require explicit human confirmation with `Idempotency-Key` headers, verified against optimistic concurrency versions before persistence.
+4. **Access Isolation**: Cross-project queries return `404 Not Found` (never `403`) to eliminate resource enumeration and privacy leaks.
+
+---
+
+## 2. Environment Variables Checklist & Configuration
+
+All environment variables are validated at boot against the Zod schema in `src/config/environment.ts`. The application fails fast if any required variable is missing or malformed.
+
+| Variable Name            | Type / Format                                                | Default                    | Description & Operational Notes                                                           |
+| ------------------------ | ------------------------------------------------------------ | -------------------------- | ----------------------------------------------------------------------------------------- |
+| `NODE_ENV`               | `development \| production \| test`                          | `development`              | Setting to `production` enforces `__Host-` cookie prefixes, TLS cookies, and strict CORS. |
+| `PORT`                   | Integer (1–65535)                                            | `3000`                     | HTTP listen port.                                                                         |
+| `APP_ORIGIN`             | URL                                                          | `http://localhost:3000`    | Allowed frontend origin for CORS and CSRF header validation.                              |
+| `DATABASE_HOST`          | Hostname / IP                                                | `127.0.0.1`                | PostgreSQL database host.                                                                 |
+| `DATABASE_PORT`          | Integer                                                      | `55432`                    | PostgreSQL database port (Local dev: `55432`, Test: `55433`, Prod: `5432`).               |
+| `DATABASE_NAME`          | String                                                       | `ai_workspace`             | PostgreSQL database name.                                                                 |
+| `DATABASE_USER`          | String                                                       | `ai_workspace_app`         | Dedicated least-privilege PostgreSQL user.                                                |
+| `DATABASE_PASSWORD`      | String                                                       | _Required_                 | Strong database user password.                                                            |
+| `DATABASE_SSL`           | Boolean                                                      | `false`                    | Enable TLS verification for database connections in staging/prod.                         |
+| `STORAGE_DRIVER`         | `local \| s3`                                                | `local`                    | Object storage backend. In production clusters, configure `s3` with MinIO or AWS S3.      |
+| `STORAGE_LOCAL_ROOT`     | File path                                                    | `./var/uploads`            | Path to persistent volume for local file storage.                                         |
+| `MAX_UPLOAD_BYTES`       | Integer (bytes)                                              | `20971520` (20 MiB)        | Maximum allowed file upload size. Validated in streaming parser.                          |
+| `SESSION_IDLE_HOURS`     | Integer (hours)                                              | `8`                        | Sliding window inactivity timeout for user sessions.                                      |
+| `SESSION_ABSOLUTE_DAYS`  | Integer (days)                                               | `7`                        | Maximum absolute lifespan of a session regardless of activity.                            |
+| `LOG_LEVEL`              | `fatal \| error \| warn \| info \| debug \| trace \| silent` | `info`                     | Logging verbosity via structured Pino logger.                                             |
+| `AI_ENABLED`             | Boolean                                                      | `false`                    | Global feature flag enabling AI chat, context retrieval, and proposals.                   |
+| `DEEPSEEK_API_KEY`       | String                                                       | _Optional_                 | DeepSeek platform API key for `deepseek-v4-pro`.                                          |
+| `DEEPSEEK_BASE_URL`      | URL                                                          | `https://api.deepseek.com` | DeepSeek API base URL.                                                                    |
+| `AI_CHAT_MODEL`          | String                                                       | `deepseek-v4-pro`          | Model identifier for reasoning and proposal generation.                                   |
+| `EMBEDDING_PROVIDER`     | `mock \| openai`                                             | `mock`                     | Embedding engine. Use `openai` in production for dense semantic retrieval.                |
+| `OPENAI_API_KEY`         | String                                                       | _Optional_                 | OpenAI API key for `text-embedding-3-small`.                                              |
+| `OPENAI_EMBEDDING_MODEL` | String                                                       | `text-embedding-3-small`   | 1536-dimensional vector embedding model.                                                  |
+| `GITHUB_CLIENT_ID`       | String                                                       | _Optional_                 | GitHub OAuth App client ID for repository sync.                                           |
+| `GITHUB_CLIENT_SECRET`   | String                                                       | _Optional_                 | GitHub OAuth App client secret.                                                           |
+| `GITHUB_WEBHOOK_SECRET`  | String                                                       | _Optional_                 | Secret for validating inbound GitHub webhook HMAC-SHA256 signatures.                      |
+
+---
+
+## 3. Database Migrations & Release Deployment
+
+### 3.1 Migration Execution Rule
+
+- `synchronize: false` and `migrationsRun: false` are strictly enforced across all environments.
+- Migrations must be run as an explicit step during the container release phase.
+
+### 3.2 Deployment Workflow
+
+1. **Pre-Deployment Backup**:
+   ```bash
+   pg_dump -h $DATABASE_HOST -p $DATABASE_PORT -U $DATABASE_USER -d $DATABASE_NAME -Fc -f "/backups/pre-deploy-$(date +%s).dump"
+   ```
+2. **Inspect Migration Status**:
+   ```bash
+   pnpm migration:show
+   ```
+3. **Execute Pending Migrations**:
+   ```bash
+   # Development / Staging:
+   pnpm migration:run
+
+   # Production Docker Container:
+   pnpm migration:run:prod
+   ```
+4. **Deploy Application Container**:
+   ```bash
+   docker compose --profile app up -d --build
+   ```
+5. **Verify Readiness Probe**:
+   ```bash
+   curl -f http://localhost:3000/api/v1/health/ready
+   # Expected: {"data":{"status":"ok"}}
+   ```
+
+---
+
+## 4. Backup & Disaster Recovery (DR)
+
+### 4.1 Automated Backup Strategy
+
+- **Frequency**: Automated daily full snapshots (`pg_dump -Fc`), hourly WAL archive shipping for Point-in-Time Recovery (PITR).
+- **Retention**: 30 days daily backups, 12 months monthly archives.
+
+### 4.2 Snapshot Backup Command
+
+```bash
+# Create binary compressed backup with BLOBs
+pg_dump \
+  -h "${DATABASE_HOST:-127.0.0.1}" \
+  -p "${DATABASE_PORT:-55432}" \
+  -U "${DATABASE_USER:-ai_workspace_app}" \
+  -d "${DATABASE_NAME:-ai_workspace}" \
+  -Fc \
+  -f "./backups/ai_workspace_$(date +%Y%m%d_%H%M%S).dump"
+```
+
+### 4.3 Database Restoration Procedure
+
+```bash
+# 1. Terminate existing application connections
+psql -h "${DATABASE_HOST}" -U postgres -d postgres -c \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'ai_workspace' AND pid != pg_backend_pid();"
+
+# 2. Drop and recreate clean database with vector extension
+psql -h "${DATABASE_HOST}" -U postgres -d postgres -c "DROP DATABASE IF EXISTS ai_workspace;"
+psql -h "${DATABASE_HOST}" -U postgres -d postgres -c "CREATE DATABASE ai_workspace OWNER ai_workspace_app;"
+psql -h "${DATABASE_HOST}" -U postgres -d ai_workspace -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# 3. Restore snapshot
+pg_restore \
+  -h "${DATABASE_HOST:-127.0.0.1}" \
+  -p "${DATABASE_PORT:-55432}" \
+  -U "${DATABASE_USER:-ai_workspace_app}" \
+  -d "${DATABASE_NAME:-ai_workspace}" \
+  --no-owner \
+  --role=ai_workspace_app \
+  "./backups/ai_workspace_target.dump"
+```
+
+### 4.4 Restoration Verification (DR Smoke Test)
+
+Run the automated schema and index verification harness:
+
+```bash
+npx ts-node scripts/backup-restore-smoke.ts
+```
+
+The script validates:
+
+- Presence of all 15 core relational tables.
+- Record counts and referential integrity.
+- `vector` extension installation and version.
+- GIN full-text index definitions across requirements, decisions, tasks, documents, and meetings.
+
+---
+
+## 5. Zero-Downtime Secret Rotation
+
+### 5.1 Database Password Rotation
+
+1. In PostgreSQL, create a secondary credential or rotate the password for `ai_workspace_app`:
+   ```sql
+   ALTER USER ai_workspace_app WITH PASSWORD 'NewUltraSecurePassword2026!';
+   ```
+2. Update the `DATABASE_PASSWORD` in secret manager / environment file.
+3. Perform a rolling restart of the NestJS application containers.
+
+### 5.2 AI Provider Key Rotation (`DEEPSEEK_API_KEY` / `OPENAI_API_KEY`)
+
+1. Provision a new API key in the provider dashboard (DeepSeek Platform or OpenAI Console).
+2. Update `DEEPSEEK_API_KEY` or `OPENAI_API_KEY` in environment variables.
+3. Execute rolling restart of application instances. Active sessions and database transactions are unaffected.
+4. Revoke the old API key in the provider console after verification.
+
+### 5.3 Session & Cookie Security
+
+- Session cookies are opaque 256-bit cryptographically secure random tokens stored hashed (`SHA-256`) in the database.
+- Immediate revocation:
+  - Single session: `POST /api/v1/auth/logout`.
+  - All user sessions: `POST /api/v1/users/me/revoke-sessions` (or admin deactivation).
+- Sliding idle expiration is enforced on every authenticated request.
+
+---
+
+## 6. End-to-End Operational Demo Script (10-Step Scenario)
+
+Follow this step-by-step procedure to demonstrate the full capabilities of the AI Workspace platform:
+
+### Step 1: Bootstrap & Authentication
+
+Log in with test credentials to obtain an authenticated session cookie and CSRF token:
+
+```bash
+curl -i -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Password123!"}'
+```
+
+_Verify: Returns HTTP 200, `Set-Cookie: aiws_session=...; HttpOnly; SameSite=Lax`, and `data.csrfToken` in response body._
+
+### Step 2: Create a Collaborative Project
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Autonomous Fleet Management","slug":"fleet-mgmt","key":"FLEET"}'
+```
+
+_Verify: Returns HTTP 201 with project ID and key `FLEET`._
+
+### Step 3: Ingest a Specification Document
+
+Upload a system architecture specification document (`PDF`, `DOCX`, or `TXT`):
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects/$PROJECT_ID/documents \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN" \
+  -F "file=@spec.pdf" \
+  -F "title=Fleet Architecture Spec"
+```
+
+_Verify: Returns HTTP 201 with document ID and status `PENDING`. Background worker chunks and indexes content into vector store._
+
+### Step 4: Hybrid Knowledge Search
+
+Search across documents, requirements, and decisions:
+
+```bash
+curl "http://localhost:3000/api/v1/projects/$PROJECT_ID/search?q=telemetry+protocol" \
+  -b "aiws_session=$SESSION_COOKIE"
+```
+
+_Verify: Returns HTTP 200 with aggregated results and `countsByType`._
+
+### Step 5: Start Grounded AI Conversation
+
+Create an AI conversation and send a grounded question:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects/$PROJECT_ID/ai/conversations \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Architecture Review","defaultMode":"DEV"}'
+```
+
+### Step 6: Query AI with Citations
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects/$PROJECT_ID/ai/conversations/$CONV_ID/messages \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"What telemetry protocol should the edge nodes use?"}'
+```
+
+_Verify: Returns synthesized response with valid Markdown citation badges referencing the uploaded document._
+
+### Step 7: Create a Project Requirement
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects/$PROJECT_ID/requirements \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Edge OTA Firmware Update","description":"Support cryptographically signed A/B firmware updates over cellular."}'
+```
+
+_Verify: Returns HTTP 201 with key `FLEET-REQ-1`._
+
+### Step 8: Generate AI Task Proposals
+
+Request AI decomposition of the requirement into implementation tasks:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects/$PROJECT_ID/ai/requirements/$REQ_ID/task-proposals \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN"
+```
+
+_Verify: Returns HTTP 201 with proposal draft status `PENDING` containing structured tasks with priorities._
+
+### Step 9: Confirm AI Proposal (Transactional Human-in-the-Loop)
+
+Confirm the proposal with an idempotency key to transactionally create real domain tasks:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects/$PROJECT_ID/ai/proposals/$PROPOSAL_ID/confirm \
+  -b "aiws_session=$SESSION_COOKIE" \
+  -H "x-csrf-token: $CSRF_TOKEN" \
+  -H "Idempotency-Key: demo-key-001" \
+  -H "Content-Type: application/json" \
+  -d '{"version":1}'
+```
+
+_Verify: Returns HTTP 200 with proposal status `CONFIRMED` and array of generated `resultRecordIds` (`FLEET-TSK-1`, `FLEET-TSK-2`). Replaying with same `Idempotency-Key` returns cached response without duplicate records._
+
+### Step 10: Inspect Dashboard & Audit Trail
+
+```bash
+curl "http://localhost:3000/api/v1/projects/$PROJECT_ID/dashboard" \
+  -b "aiws_session=$SESSION_COOKIE"
+
+curl "http://localhost:3000/api/v1/projects/$PROJECT_ID/activity" \
+  -b "aiws_session=$SESSION_COOKIE"
+```
+
+_Verify: Returns comprehensive dashboard metrics and audit logs recording `AI_PROPOSAL_CONFIRMED`, `TASK_CREATED`, and `DOCUMENT_UPLOADED`._

@@ -348,7 +348,29 @@ describe('Workspace Integration API - Dashboard & Search (E2E)', () => {
     exists: jest.fn().mockResolvedValue(true),
   };
 
+  const genericMockRepo = {
+    find: jest.fn().mockResolvedValue([]),
+    findOne: jest.fn().mockResolvedValue(null),
+    findAndCount: jest.fn().mockResolvedValue([[], 0]),
+    save: jest.fn((e: unknown) => Promise.resolve(e)),
+    create: jest.fn((e: unknown) => e),
+    delete: jest.fn().mockResolvedValue({ affected: 0 }),
+    count: jest.fn().mockResolvedValue(0),
+    createQueryBuilder: jest.fn(() => ({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+      getOne: jest.fn().mockResolvedValue(null),
+    })),
+  };
+
   const mockDataSource = {
+    entityMetadatas: [] as unknown[],
+    options: { type: 'postgres' },
     getRepository: jest.fn((entity: unknown) => {
       if (entity === User) return mockUserRepository;
       if (entity === Session) return mockSessionRepository;
@@ -360,7 +382,7 @@ describe('Workspace Integration API - Dashboard & Search (E2E)', () => {
       if (entity === Decision) return mockDecisionRepository;
       if (entity === Meeting) return mockMeetingRepository;
       if (entity === Document) return mockDocumentRepository;
-      return {};
+      return genericMockRepo;
     }),
   };
 

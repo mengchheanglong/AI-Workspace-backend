@@ -27,6 +27,7 @@ import { AuditLog } from '../../src/modules/audit/entities/audit-log.entity';
 import { Document, ProcessingStatus } from '../../src/modules/documents/entities/document.entity';
 import { DocumentRevision } from '../../src/modules/documents/entities/document-revision.entity';
 import { PasswordService } from '../../src/modules/auth/services/password.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 describe('Documents and File Storage API (E2E)', () => {
   let app: INestApplication;
@@ -309,6 +310,12 @@ describe('Documents and File Storage API (E2E)', () => {
   };
 
   const mockDataSource = {
+    entityMetadatas: [] as unknown[],
+    options: { type: 'postgres' },
+    getRepository: jest.fn(() => ({
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+    })),
     transaction: jest.fn(async (cb: (em: typeof mockEntityManager) => Promise<unknown>) => {
       return cb(mockEntityManager);
     }),
@@ -508,8 +515,9 @@ describe('Documents and File Storage API (E2E)', () => {
           }),
         },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: OutboxService, useValue: { emit: jest.fn().mockResolvedValue({}) } },
       ],
-      exports: [ConfigService, DataSource],
+      exports: [ConfigService, DataSource, OutboxService],
     })
     class TestDependencies {}
 
