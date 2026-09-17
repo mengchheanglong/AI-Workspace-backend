@@ -31,6 +31,7 @@ import { Task, Priority } from '../../src/modules/tasks/entities/task.entity';
 import { Meeting } from '../../src/modules/meetings/entities/meeting.entity';
 import { MeetingAttendee } from '../../src/modules/meetings/entities/meeting-attendee.entity';
 import { PasswordService } from '../../src/modules/auth/services/password.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 describe('Tasks and Meetings API (E2E)', () => {
   let app: INestApplication;
@@ -486,6 +487,12 @@ describe('Tasks and Meetings API (E2E)', () => {
   };
 
   const mockDataSource = {
+    entityMetadatas: [] as unknown[],
+    options: { type: 'postgres' },
+    getRepository: jest.fn(() => ({
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+    })),
     transaction: jest.fn(async (cb: (manager: unknown) => Promise<unknown>) =>
       cb(mockEntityManager),
     ),
@@ -658,8 +665,9 @@ describe('Tasks and Meetings API (E2E)', () => {
           }),
         },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: OutboxService, useValue: { emit: jest.fn().mockResolvedValue({}) } },
       ],
-      exports: [ConfigService, DataSource],
+      exports: [ConfigService, DataSource, OutboxService],
     })
     class TestDependencies {}
 

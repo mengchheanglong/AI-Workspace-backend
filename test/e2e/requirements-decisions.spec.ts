@@ -28,6 +28,7 @@ import { DecisionRevision } from '../../src/modules/decisions/entities/decision-
 import { Task } from '../../src/modules/tasks/entities/task.entity';
 import { Meeting } from '../../src/modules/meetings/entities/meeting.entity';
 import { PasswordService } from '../../src/modules/auth/services/password.service';
+import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
 describe('Requirements and Decisions API (E2E)', () => {
   let app: INestApplication;
@@ -445,6 +446,8 @@ describe('Requirements and Decisions API (E2E)', () => {
   };
 
   const mockDataSource = {
+    entityMetadatas: [] as unknown[],
+    options: { type: 'postgres' },
     transaction: jest.fn(async (cb: (manager: unknown) => Promise<unknown>) =>
       cb(mockEntityManager),
     ),
@@ -597,8 +600,9 @@ describe('Requirements and Decisions API (E2E)', () => {
           }),
         },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: OutboxService, useValue: { emit: jest.fn().mockResolvedValue({}) } },
       ],
-      exports: [ConfigService, DataSource],
+      exports: [ConfigService, DataSource, OutboxService],
     })
     class TestDependencies {}
 

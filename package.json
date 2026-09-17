@@ -20,6 +20,7 @@
     "test": "jest --config jest.config.cjs --selectProjects unit --runInBand",
     "test:e2e": "jest --config jest.config.cjs --selectProjects e2e --runInBand",
     "test:integration": "node scripts/run-integration.cjs",
+    "test:ai-eval": "ts-node scripts/run-ai-eval.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:show": "typeorm-ts-node-commonjs migration:show -d src/database/data-source.ts",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
