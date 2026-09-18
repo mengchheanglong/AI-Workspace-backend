@@ -70,7 +70,7 @@ ${modeInstruction}
 "Based on the current project knowledge, there is insufficient evidence to answer this question."
 Do NOT hallucinate, guess, or invent unstated project requirements, decisions, tasks, or metrics.
 3. CITATION CONVENTION: When referencing facts from the evidence, cite the specific source using bracketed markers like "[Evidence #1]" or "[Source: <Title>]". Every claim regarding project architecture, requirements, or decisions must be traceable to the evidence.
-4. TONE & STYLE: Be concise, clear, and professional. Use GitHub-flavored Markdown for formatting and code snippets.
+4. TONE & STYLE: Be concise, structured, and professional. Use clean GitHub-flavored Markdown: use clear section headers (## or ###), bulleted lists with bold term prefixes, and complete all sections thoroughly without cutting off.
 =========================================
 
 === RETRIEVED PROJECT EVIDENCE ===

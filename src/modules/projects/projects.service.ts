@@ -106,15 +106,18 @@ export class ProjectsService {
 
       await manager.save(ProjectMember, member);
 
-      await this.auditService.record({
-        projectId: savedProject.id,
-        actorId: userId,
-        action: 'PROJECT_CREATED',
-        entityType: 'PROJECT',
-        entityId: savedProject.id,
-        metadata: { key: savedProject.key, name: savedProject.name },
-        requestId,
-      });
+      await this.auditService.record(
+        {
+          projectId: savedProject.id,
+          actorId: userId,
+          action: 'PROJECT_CREATED',
+          entityType: 'PROJECT',
+          entityId: savedProject.id,
+          metadata: { key: savedProject.key, name: savedProject.name },
+          requestId,
+        },
+        manager,
+      );
 
       return {
         project: savedProject,

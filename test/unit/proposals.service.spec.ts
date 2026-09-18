@@ -19,6 +19,7 @@ import {
 } from '../../src/modules/requirements/entities/requirement.entity';
 import { Meeting } from '../../src/modules/meetings/entities/meeting.entity';
 import { Task } from '../../src/modules/tasks/entities/task.entity';
+import { Decision } from '../../src/modules/decisions/entities/decision.entity';
 import { Project, ProjectStatus } from '../../src/modules/projects/entities/project.entity';
 import { ProjectRole } from '../../src/modules/projects/entities/project-member.entity';
 import { User, SystemRole } from '../../src/modules/users/entities/user.entity';
@@ -617,12 +618,297 @@ describe('ProposalsService', () => {
       expect(capturedTask).not.toBeNull();
       expect(capturedTask!.number).toBe(6);
       expect(capturedTask!.title).toBe('Implement feature backend');
+      expect(capturedTask!.requirementId).toBe(mockRequirement.id);
+      expect(capturedTask!.sourceMeetingId).toBeNull();
       expect(capturedCommit).not.toBeNull();
       expect(capturedCommit!.idempotencyKey).toBe('key-create-task');
       expect(mockOutboxService.emit).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ eventType: 'TASK_CREATED' }),
       );
+    });
+
+    it('should throw ConflictException if idempotency key is reused with mismatched payload hash', async () => {
+      const existingCommit: ProposalCommit = {
+        id: 'commit-diff',
+        proposalId: 'prop-123',
+        projectId: mockProjectId,
+        actorId: mockUserId,
+        idempotencyKey: 'key-reused',
+        payloadHash: 'hash-of-original-payload',
+        resultRecordIds: [{ entityType: 'TASK', id: 'task-orig', key: 'AIW-TSK-1' }],
+        createdAt: new Date(),
+      };
+
+      mockCommitRepo.findOne.mockResolvedValue(existingCommit);
+
+      await expect(
+        service.confirmProposal(
+          mockProjectId,
+          mockActor,
+          'prop-123',
+          { version: 1, selectedItemIds: ['different-item'] },
+          'key-reused',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should create tasks from meeting analysis and link them correctly to sourceMeetingId', async () => {
+      const meetingProposal = {
+        id: 'prop-meeting-123',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        proposalType: ProposalType.MEETING_ANALYSIS,
+        sourceEntityType: 'MEETING',
+        sourceEntityId: mockMeeting.id,
+        sourceRevision: 3,
+        draftJson: {
+          type: 'MEETING_ANALYSIS',
+          summary: 'Approved sprint goals and architecture direction.',
+          decisions: [
+            {
+              itemId: 'dec-item-1',
+              title: 'Adopt vector embeddings',
+              decisionText: 'Use 1536 dim embeddings',
+              status: 'PROPOSED',
+            },
+          ],
+          requirements: [
+            {
+              itemId: 'req-item-1',
+              title: 'Vector Search Pipeline',
+              description: 'Implement hybrid search pipeline',
+              priority: Priority.HIGH,
+            },
+          ],
+          actionItems: [
+            {
+              itemId: 'action-item-1',
+              title: 'Deploy pgvector extension in staging',
+              description: 'Run migration and verify extension',
+              priority: Priority.URGENT,
+              dueDate: '2026-09-30',
+            },
+          ],
+        },
+        version: 1,
+        status: ProposalStatus.PENDING,
+        expiresAt: new Date(Date.now() + 100000),
+        confirmedBy: null,
+        confirmedAt: null,
+        resultRecordIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as unknown as AIProposal;
+
+      let capturedMeetingTask: Task | null = null;
+      let capturedMeetingDecision: Decision | null = null;
+      let capturedMeetingReq: Requirement | null = null;
+
+      mockDataSource.transaction = jest.fn(
+        async (
+          cb: (manager: {
+            findOne: (entityClass: unknown) => Promise<unknown>;
+            query: () => Promise<unknown>;
+            create: (entityClass: unknown, plainObject: unknown) => unknown;
+            save: (entityClass: unknown, plainObject: unknown) => Promise<unknown>;
+            createQueryBuilder: () => unknown;
+          }) => Promise<unknown>,
+        ) => {
+          const mockManager = {
+            findOne: jest.fn((entityClass: unknown) => {
+              if (entityClass === AIProposal) return Promise.resolve(meetingProposal);
+              if (entityClass === Meeting) return Promise.resolve(mockMeeting);
+              return Promise.resolve(null);
+            }),
+            query: jest.fn().mockResolvedValue([{ max: 1 }]),
+            create: jest.fn((_entityClass: unknown, plainObject: unknown) => ({
+              id: 'gen-meeting-record-id',
+              ...(plainObject as object),
+            })),
+            save: jest.fn((entityClass: unknown, plainObject: unknown) => {
+              if (entityClass === Task) capturedMeetingTask = plainObject as Task;
+              if (entityClass === Requirement) capturedMeetingReq = plainObject as Requirement;
+              if (entityClass === Decision) {
+                capturedMeetingDecision = plainObject as Decision;
+              }
+              return Promise.resolve({ id: 'saved-id', ...(plainObject as object) });
+            }),
+            createQueryBuilder: jest.fn(() => ({
+              innerJoinAndSelect: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              andWhere: jest.fn().mockReturnThis(),
+              getOne: jest.fn().mockResolvedValue(null),
+            })),
+          };
+          return cb(mockManager);
+        },
+      );
+
+      const res = await service.confirmProposal(
+        mockProjectId,
+        mockActor,
+        'prop-meeting-123',
+        { version: 1, includeSummary: true },
+        'key-meeting-confirm',
+      );
+
+      expect(res.resultRecordIds.some((r) => r.entityType === 'TASK')).toBe(true);
+      expect(res.resultRecordIds.some((r) => r.entityType === 'REQUIREMENT')).toBe(true);
+      expect(res.resultRecordIds.some((r) => r.entityType === 'DECISION')).toBe(true);
+      expect(res.resultRecordIds.some((r) => r.entityType === 'MEETING_SUMMARY')).toBe(true);
+
+      // Verify source linkage
+      expect(capturedMeetingTask).not.toBeNull();
+      expect(capturedMeetingTask!.sourceMeetingId).toBe(mockMeeting.id);
+      expect(capturedMeetingTask!.requirementId).toBeNull();
+
+      expect(capturedMeetingReq).not.toBeNull();
+      expect(capturedMeetingReq!.sourceMeetingId).toBe(mockMeeting.id);
+
+      expect(capturedMeetingDecision).not.toBeNull();
+      expect(capturedMeetingDecision!.sourceMeetingId).toBe(mockMeeting.id);
+    });
+
+    it('should reject meeting analysis confirmation if meeting transcriptVersion was updated', async () => {
+      const meetingProposal = {
+        id: 'prop-stale-meeting',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        proposalType: ProposalType.MEETING_ANALYSIS,
+        sourceEntityType: 'MEETING',
+        sourceEntityId: mockMeeting.id,
+        sourceRevision: 3, // based on transcriptVersion 3
+        status: ProposalStatus.PENDING,
+        version: 1,
+        expiresAt: new Date(Date.now() + 100000),
+        draftJson: {
+          type: 'MEETING_ANALYSIS',
+          summary: 'Summary',
+          decisions: [],
+          requirements: [],
+          actionItems: [{ itemId: 'item-1', title: 'Task 1', priority: Priority.MEDIUM }],
+        },
+      } as unknown as AIProposal;
+
+      mockDataSource.transaction = jest.fn(
+        async (
+          cb: (manager: {
+            findOne: (entityClass: unknown) => Promise<unknown>;
+          }) => Promise<unknown>,
+        ) => {
+          const mockManager = {
+            findOne: jest.fn((entityClass: unknown) => {
+              if (entityClass === AIProposal) return Promise.resolve(meetingProposal);
+              if (entityClass === Meeting)
+                return Promise.resolve({ ...mockMeeting, transcriptVersion: 4 }); // drifted!
+              return Promise.resolve(null);
+            }),
+          };
+          return cb(mockManager);
+        },
+      );
+
+      await expect(
+        service.confirmProposal(
+          mockProjectId,
+          mockActor,
+          'prop-stale-meeting',
+          { version: 1 },
+          'key-stale-meeting',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should confirm edited draft tasks with modified title, priority, and selected items', async () => {
+      // Step 1: Draft proposal exists with version 2 after being edited
+      const editedProposal = {
+        id: 'prop-edited-123',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        proposalType: ProposalType.TASK_PROPOSAL,
+        sourceEntityType: 'REQUIREMENT',
+        sourceEntityId: mockRequirement.id,
+        sourceRevision: 2,
+        draftJson: {
+          type: 'CREATE_TASKS',
+          items: [
+            {
+              itemId: 'edited-item-1',
+              title: 'Refined Task Title: Custom Stream Parser',
+              description: 'Refined task description with edge-case handling',
+              priority: Priority.URGENT,
+              dueDate: '2026-10-15',
+              sourceIds: [mockRequirement.id],
+            },
+            {
+              itemId: 'edited-item-2',
+              title: 'Unselected Task',
+              description: 'Will not be confirmed',
+              priority: Priority.LOW,
+              sourceIds: [],
+            },
+          ],
+        },
+        version: 2, // version was bumped after edit
+        status: ProposalStatus.PENDING,
+        expiresAt: new Date(Date.now() + 100000),
+        confirmedBy: null,
+        confirmedAt: null,
+        resultRecordIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as AIProposal;
+
+      let capturedTask: Task | null = null;
+
+      mockDataSource.transaction = jest.fn(
+        async (
+          cb: (manager: {
+            findOne: (entityClass: unknown) => Promise<unknown>;
+            query: () => Promise<unknown>;
+            create: (entityClass: unknown, plainObject: unknown) => unknown;
+            save: (entityClass: unknown, plainObject: unknown) => Promise<unknown>;
+          }) => Promise<unknown>,
+        ) => {
+          const mockManager = {
+            findOne: jest.fn((entityClass: unknown) => {
+              if (entityClass === AIProposal) return Promise.resolve(editedProposal);
+              if (entityClass === Requirement) return Promise.resolve(mockRequirement);
+              return Promise.resolve(null);
+            }),
+            query: jest.fn().mockResolvedValue([{ max: 10 }]),
+            create: jest.fn((_entityClass: unknown, plainObject: unknown) => ({
+              id: 'gen-task-id',
+              ...(plainObject as object),
+            })),
+            save: jest.fn((entityClass: unknown, plainObject: unknown) => {
+              if (entityClass === Task) capturedTask = plainObject as Task;
+              return Promise.resolve({ id: 'saved-id', ...(plainObject as object) });
+            }),
+          };
+          return cb(mockManager);
+        },
+      );
+
+      // Confirm only 'edited-item-1' with version 2
+      const res = await service.confirmProposal(
+        mockProjectId,
+        mockActor,
+        'prop-edited-123',
+        { version: 2, selectedItemIds: ['edited-item-1'] },
+        'key-edited-confirm',
+      );
+
+      // Verify only 1 task created, matching edited fields
+      expect(res.resultRecordIds).toHaveLength(1);
+      expect(capturedTask).not.toBeNull();
+      expect(capturedTask!.title).toBe('Refined Task Title: Custom Stream Parser');
+      expect(capturedTask!.description).toBe('Refined task description with edge-case handling');
+      expect(capturedTask!.priority).toBe(Priority.URGENT);
+      expect(capturedTask!.dueDate).toBe('2026-10-15');
+      expect(capturedTask!.requirementId).toBe(mockRequirement.id);
+      expect(capturedTask!.sourceMeetingId).toBeNull();
     });
   });
 });

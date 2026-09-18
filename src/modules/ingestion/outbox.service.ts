@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { OutboxEvent } from './entities/outbox-event.entity';
@@ -11,15 +11,31 @@ export interface EmitEventParams {
 }
 
 @Injectable()
-export class OutboxService {
+export class OutboxService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxService.name);
   private isProcessing = false;
   private eventHandler?: (event: OutboxEvent) => Promise<void>;
+  private pollInterval?: NodeJS.Timeout;
 
   constructor(
     @InjectRepository(OutboxEvent)
     private readonly outboxRepository: Repository<OutboxEvent>,
   ) {}
+
+  onModuleInit(): void {
+    this.pollInterval = setInterval(() => {
+      void this.processPending().catch((err) => {
+        this.logger.error(`Outbox polling error: ${err?.message || err}`);
+      });
+    }, 2000);
+    this.pollInterval.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+    }
+  }
 
   setEventHandler(handler: (event: OutboxEvent) => Promise<void>): void {
     this.eventHandler = handler;
@@ -69,8 +85,8 @@ export class OutboxService {
       ? await manager.save(OutboxEvent, event)
       : await this.outboxRepository.save(event);
 
-    // Schedule immediate asynchronous processing
-    setImmediate(() => {
+    // Schedule asynchronous processing with small delay to allow active transaction to commit
+    setTimeout(() => {
       void (async () => {
         try {
           await this.processPending();
@@ -79,7 +95,7 @@ export class OutboxService {
           this.logger.error(`Error in outbox background dispatch: ${msg}`);
         }
       })();
-    });
+    }, 100);
 
     return saved;
   }

@@ -41,12 +41,12 @@ export class DeepSeekLlmProvider implements LlmProvider {
   ) {}
 
   async generateAnswer(params: GenerateAnswerParams): Promise<GenerateAnswerResult> {
-    const { messages, evidence, temperature = 0.2, maxTokens = 1500 } = params;
+    const { messages, evidence, temperature = 0.2, maxTokens = 3000 } = params;
 
     const endpoint = `${this.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
     try {
       const response = await fetch(endpoint, {
@@ -87,7 +87,7 @@ export class DeepSeekLlmProvider implements LlmProvider {
       };
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-        this.logger.error('DeepSeek API request timed out after 30s');
+        this.logger.error('DeepSeek API request timed out after 60s');
         throw new Error('DeepSeek API request timed out', { cause: error });
       }
       this.logger.error(

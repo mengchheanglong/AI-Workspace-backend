@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
@@ -28,10 +29,8 @@ async function bootstrap(): Promise<void> {
   server.headersTimeout = 15000;
 }
 
-void bootstrap().catch(() => {
+void bootstrap().catch((err) => {
   // Avoid dumping configuration, DB connection strings, or raw provider errors.
-  process.stderr.write(
-    'Application startup failed. Check configuration and dependency availability.\n',
-  );
+  process.stderr.write(`Application startup failed: ${err?.message || err}\n`);
   process.exitCode = 1;
 });
