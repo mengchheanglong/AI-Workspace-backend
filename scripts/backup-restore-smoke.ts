@@ -32,7 +32,7 @@ async function runBackupRestoreSmoke() {
       'documents',
       'document_revisions',
       'audit_logs',
-      'migrations',
+      tableNames.includes('schema_migrations') ? 'schema_migrations' : 'migrations',
     ];
 
     for (const expected of expectedTables) {

@@ -142,7 +142,13 @@ describe('DocumentsService', () => {
         { provide: getRepositoryToken(ProjectMember), useValue: mockMemberRepo },
         { provide: STORAGE_DRIVER, useValue: mockStorageDriver },
         { provide: AuditService, useValue: mockAuditService },
-        { provide: OutboxService, useValue: { emit: jest.fn().mockResolvedValue({}) } },
+        {
+          provide: OutboxService,
+          useValue: {
+            emit: jest.fn().mockResolvedValue({}),
+            processPending: jest.fn().mockResolvedValue(0),
+          },
+        },
         { provide: DataSource, useValue: mockDataSource },
         { provide: ConfigService, useValue: mockConfigService },
       ],

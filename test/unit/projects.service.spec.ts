@@ -67,6 +67,7 @@ describe('ProjectsService', () => {
     expect(result.accessRole).toBe(ProjectRole.OWNER);
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'PROJECT_CREATED' }),
+      expect.anything(),
     );
   });
 

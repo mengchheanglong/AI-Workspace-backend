@@ -225,6 +225,9 @@ export class DocumentsService {
         return savedDoc;
       });
 
+      // Dispatch outbox events now that the document transaction is committed
+      void this.outboxService.processPending?.();
+
       await this.auditService.record({
         projectId,
         actorId,
@@ -428,6 +431,9 @@ export class DocumentsService {
 
         return savedDoc;
       });
+
+      // Dispatch outbox events now that the revision replacement is committed
+      void this.outboxService.processPending?.();
 
       await this.auditService.record({
         projectId,
