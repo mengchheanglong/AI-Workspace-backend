@@ -61,6 +61,31 @@
         ]
       }
     },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registration successful, returns profile and CSRF token"
+          }
+        },
+        "summary": "Register a new user account and obtain session cookie",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -3442,6 +3467,30 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@workspace.local"
+          },
+          "password": {
+            "type": "string",
+            "example": "SecretPass123!",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Alice Developer",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "email",
+          "password"
         ]
       },
       "LoginDto": {

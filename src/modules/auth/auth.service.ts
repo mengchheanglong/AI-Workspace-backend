@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { PasswordService } from './services/password.service';
 import { CreatedSession, SessionService } from './services/session.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { User } from '../users/entities/user.entity';
+import { ProfessionalRole, SystemRole, User } from '../users/entities/user.entity';
 
 // Pre-computed hash to mitigate timing attacks on nonexistent accounts
 const DUMMY_HASH =
@@ -17,6 +18,32 @@ export class AuthService {
     private readonly passwordService: PasswordService,
     private readonly sessionService: SessionService,
   ) {}
+
+  async register(dto: RegisterDto): Promise<{ user: User } & CreatedSession> {
+    const existing = await this.usersService.findByEmail(dto.email);
+    if (existing) {
+      throw new ConflictException({
+        code: 'EMAIL_ALREADY_EXISTS',
+        message: 'A user with this email address already exists.',
+      });
+    }
+
+    const displayName = dto.displayName?.trim() || dto.email.split('@')[0] || 'User';
+    const { user } = await this.usersService.create({
+      email: dto.email,
+      displayName,
+      password: dto.password,
+      systemRole: SystemRole.USER,
+      professionalRole: ProfessionalRole.DEVELOPER,
+    });
+
+    const created = await this.sessionService.createSession(user.id);
+
+    return {
+      user,
+      ...created,
+    };
+  }
 
   async login(dto: LoginDto): Promise<{ user: User } & CreatedSession> {
     const user = await this.usersService.findByEmail(dto.email);

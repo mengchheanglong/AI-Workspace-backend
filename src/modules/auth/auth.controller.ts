@@ -23,6 +23,7 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { SessionService } from './services/session.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { SessionAuthGuard } from '../../common/guards/session-auth.guard';
@@ -53,6 +54,27 @@ export class AuthController {
     }
     // Return a bootstrap token for unauthenticated visitors
     return { data: { csrfToken: null } };
+  }
+
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user account and obtain session cookie' })
+  @ApiOkResponse({ description: 'Registration successful, returns profile and CSRF token' })
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) response: Response) {
+    const { user, rawToken, rawCsrfToken } = await this.authService.register(dto);
+
+    const cookieName = this.sessionService.getCookieName();
+    const cookieOptions = this.sessionService.getCookieOptions();
+
+    response.cookie(cookieName, rawToken, cookieOptions);
+
+    return {
+      data: {
+        user: UserResponseDto.fromEntity(user),
+        csrfToken: rawCsrfToken,
+      },
+    };
   }
 
   @Public()

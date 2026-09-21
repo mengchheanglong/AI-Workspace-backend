@@ -222,6 +222,50 @@ describe('Auth and Users API (E2E)', () => {
     expect(res.body).toEqual({ data: { csrfToken: null } });
   });
 
+  it('POST /api/v1/auth/register rejects invalid email or short password with 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email: 'not-an-email', password: '123' })
+      .expect(400);
+
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toBeDefined();
+    expect(res.body.error.details.length).toBeGreaterThan(0);
+  });
+
+  it('POST /api/v1/auth/register succeeds, sets HttpOnly cookie, and returns user profile & CSRF token', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'newbie@workspace.local',
+        password: 'NewbiePassword123!',
+        displayName: 'Newbie User',
+      })
+      .expect(201);
+
+    expect(res.body.data.user.email).toBe('newbie@workspace.local');
+    expect(res.body.data.user.displayName).toBe('Newbie User');
+    expect(res.body.data.user.systemRole).toBe(SystemRole.USER);
+    expect(res.body.data.user).not.toHaveProperty('passwordHash');
+    expect(res.body.data.csrfToken).toBeTruthy();
+
+    const cookies = res.headers['set-cookie'] as unknown as string[];
+    expect(cookies).toBeDefined();
+    const sessionCookie = cookies.find((c: string) => c.startsWith('aiws_session='));
+    expect(sessionCookie).toBeDefined();
+
+    // Rejects duplicate registration with 409
+    const dupRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'newbie@workspace.local',
+        password: 'NewbiePassword123!',
+      })
+      .expect(409);
+
+    expect(dupRes.body.error.code).toBe('EMAIL_ALREADY_EXISTS');
+  });
+
   it('POST /api/v1/auth/login rejects invalid password with 401', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
