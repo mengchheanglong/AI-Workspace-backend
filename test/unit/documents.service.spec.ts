@@ -108,6 +108,7 @@ describe('DocumentsService', () => {
 
   const mockMemberRepo = {
     findOne: jest.fn(),
+    find: jest.fn(),
   };
 
   const mockDataSource = {
@@ -280,6 +281,7 @@ describe('DocumentsService', () => {
   describe('list', () => {
     it('queries documents with filters and pagination', async () => {
       interface MockDocBuilder {
+        leftJoinAndSelect: () => MockDocBuilder;
         where: () => MockDocBuilder;
         andWhere: () => MockDocBuilder;
         orderBy: () => MockDocBuilder;
@@ -289,6 +291,7 @@ describe('DocumentsService', () => {
         getManyAndCount: () => Promise<[Document[], number]>;
       }
       const qb: MockDocBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
@@ -495,6 +498,40 @@ describe('DocumentsService', () => {
       expect(mockRevRepo.find).toHaveBeenCalledWith({
         where: { documentId: DOC_ID },
         order: { revision: 'DESC' },
+      });
+    });
+  });
+
+  describe('listAllUserDocuments', () => {
+    it('returns empty array when user has no project memberships', async () => {
+      mockMemberRepo.find.mockResolvedValue([]);
+      const result = await service.listAllUserDocuments(ACTOR_ID, {});
+      expect(result).toEqual({ data: [], total: 0 });
+    });
+
+    it('returns documents for projects user is a member of', async () => {
+      mockMemberRepo.find.mockResolvedValue([{ projectId: PROJECT_ID }]);
+      const doc = makeDocument();
+      const mockQb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[doc], 1]),
+      };
+      mockDocRepo.createQueryBuilder.mockReturnValue(mockQb);
+
+      const result = await service.listAllUserDocuments(ACTOR_ID, {
+        fileType: 'pdf',
+        search: 'test',
+      });
+      expect(result.data).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(mockQb.where).toHaveBeenCalledWith('doc.projectId IN (:...targetProjectIds)', {
+        targetProjectIds: [PROJECT_ID],
       });
     });
   });
