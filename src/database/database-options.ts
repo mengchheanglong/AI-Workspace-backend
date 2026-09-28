@@ -9,9 +9,14 @@ export function databaseOptions(url: string): DataSourceOptions {
     url.includes('neon.tech') ||
     process.env.DATABASE_SSL === 'true';
 
+  // Strip sslmode from URL query parameters so pg driver uses explicit ssl options
+  const cleanUrl = isCloudSsl
+    ? url.replace(/([?&])sslmode=[^&]+(&|$)/, '$1').replace(/[?&]$/, '')
+    : url;
+
   return {
     type: 'postgres',
-    url,
+    url: cleanUrl,
     ssl: isCloudSsl ? { rejectUnauthorized: false } : undefined,
     entities: [join(__dirname, '../modules/**/*.entity{.ts,.js}')],
     migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
