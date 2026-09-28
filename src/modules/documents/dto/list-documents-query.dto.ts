@@ -16,6 +16,21 @@ export class ListDocumentsQueryDto {
   @MaxLength(100)
   mimeType?: string;
 
+  @ApiPropertyOptional({ example: 'f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3' })
+  @IsOptional()
+  @IsString()
+  projectId?: string;
+
+  @ApiPropertyOptional({ example: 'f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3' })
+  @IsOptional()
+  @IsString()
+  createdBy?: string;
+
+  @ApiPropertyOptional({ example: 'pdf' })
+  @IsOptional()
+  @IsString()
+  fileType?: string;
+
   @ApiPropertyOptional({ enum: ProcessingStatus })
   @IsOptional()
   @IsEnum(ProcessingStatus)

@@ -6,6 +6,7 @@ import { Project } from '../projects/entities/project.entity';
 import { ProjectMember } from '../projects/entities/project-member.entity';
 import { DocumentsService } from './documents.service';
 import { DocumentsController } from './documents.controller';
+import { UserDocumentsController } from './user-documents.controller';
 import { StorageModule } from '../storage/storage.module';
 import { ProjectPolicyGuard } from '../../common/guards/project-policy.guard';
 
@@ -14,7 +15,7 @@ import { ProjectPolicyGuard } from '../../common/guards/project-policy.guard';
     TypeOrmModule.forFeature([Document, DocumentRevision, Project, ProjectMember]),
     StorageModule,
   ],
-  controllers: [DocumentsController],
+  controllers: [DocumentsController, UserDocumentsController],
   providers: [DocumentsService, ProjectPolicyGuard],
   exports: [DocumentsService, TypeOrmModule],
 })

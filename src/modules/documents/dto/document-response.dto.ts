@@ -44,6 +44,33 @@ export class DocumentResponseDto {
   @ApiProperty({ example: 1 })
   version!: number;
 
+  @ApiPropertyOptional({
+    example: { id: 'uuid', name: 'AI Project Workspace', key: 'AIW' },
+  })
+  project?: {
+    id: string;
+    name: string;
+    key: string;
+  };
+
+  @ApiPropertyOptional({
+    example: { id: 'uuid', displayName: 'Panhavorn', email: 'panhavorn@example.com' },
+  })
+  creator?: {
+    id: string;
+    displayName: string;
+    email: string;
+  };
+
+  @ApiPropertyOptional({
+    example: { id: 'uuid', displayName: 'Meng Fong', email: 'mengfong@example.com' },
+  })
+  updater?: {
+    id: string;
+    displayName: string;
+    email: string;
+  };
+
   @ApiProperty({ example: '2026-09-11T10:00:00.000Z' })
   createdAt!: string;
 
@@ -66,6 +93,27 @@ export class DocumentResponseDto {
       createdBy: doc.createdBy,
       updatedBy: doc.updatedBy,
       version: doc.version,
+      project: doc.project
+        ? {
+            id: doc.project.id,
+            name: doc.project.name,
+            key: doc.project.key,
+          }
+        : undefined,
+      creator: doc.creator
+        ? {
+            id: doc.creator.id,
+            displayName: doc.creator.displayName,
+            email: doc.creator.email,
+          }
+        : undefined,
+      updater: doc.updater
+        ? {
+            id: doc.updater.id,
+            displayName: doc.updater.displayName,
+            email: doc.updater.email,
+          }
+        : undefined,
       createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
       updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
     };

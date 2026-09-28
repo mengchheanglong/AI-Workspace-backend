@@ -35,6 +35,12 @@ const ALLOWED_EXTENSIONS: Record<string, string> = {
   '.txt': 'text/plain',
   '.md': 'text/markdown',
   '.markdown': 'text/markdown',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.csv': 'text/csv',
 };
 
 const SORT_COLUMN_MAP: Record<string, string> = {
@@ -116,8 +122,8 @@ export class DocumentsService {
           message: 'File content does not match PDF signature (%PDF-).',
         });
       }
-    } else if (ext === '.docx') {
-      // DOCX is a ZIP archive, must begin with PK\x03\x04 (0x50, 0x4B, 0x03, 0x04)
+    } else if (ext === '.docx' || ext === '.xlsx' || ext === '.pptx') {
+      // DOCX, XLSX, PPTX are ZIP archives, must begin with PK\x03\x04 (0x50, 0x4B, 0x03, 0x04)
       if (
         buffer.length < 4 ||
         buffer[0] !== 0x50 ||
@@ -127,11 +133,33 @@ export class DocumentsService {
       ) {
         throw new UnsupportedMediaTypeException({
           code: 'UNSUPPORTED_MEDIA_TYPE',
-          message: 'File content does not match DOCX ZIP signature (PK).',
+          message: `File content does not match ${ext.toUpperCase().replace('.', '')} ZIP signature (PK).`,
+        });
+      }
+    } else if (ext === '.png') {
+      // PNG header: 0x89 0x50 0x4E 0x47
+      if (
+        buffer.length < 4 ||
+        buffer[0] !== 0x89 ||
+        buffer[1] !== 0x50 ||
+        buffer[2] !== 0x4e ||
+        buffer[3] !== 0x47
+      ) {
+        throw new UnsupportedMediaTypeException({
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          message: 'File content does not match PNG signature.',
+        });
+      }
+    } else if (ext === '.jpg' || ext === '.jpeg') {
+      // JPEG header: 0xFF 0xD8 0xFF
+      if (buffer.length < 3 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+        throw new UnsupportedMediaTypeException({
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          message: 'File content does not match JPEG signature.',
         });
       }
     } else {
-      // TXT or Markdown: must not contain binary null bytes (0x00) and must be valid UTF-8
+      // TXT, Markdown, CSV: must not contain binary null bytes (0x00) and must be valid UTF-8
       if (buffer.includes(0x00)) {
         throw new UnsupportedMediaTypeException({
           code: 'UNSUPPORTED_MEDIA_TYPE',
@@ -265,6 +293,9 @@ export class DocumentsService {
     query: ListDocumentsQueryDto,
   ): Promise<{ data: Document[]; total: number }> {
     const qb = this.documentRepository.createQueryBuilder('doc');
+    qb.leftJoinAndSelect('doc.project', 'project');
+    qb.leftJoinAndSelect('doc.creator', 'creator');
+    qb.leftJoinAndSelect('doc.updater', 'updater');
     qb.where('doc.projectId = :projectId', { projectId });
     qb.andWhere('doc.deletedAt IS NULL');
 
@@ -293,6 +324,93 @@ export class DocumentsService {
 
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
+    qb.skip((page - 1) * pageSize).take(pageSize);
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total };
+  }
+
+  async listAllUserDocuments(
+    userId: string,
+    query: ListDocumentsQueryDto,
+  ): Promise<{ data: Document[]; total: number }> {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 100));
+
+    const memberships = await this.memberRepository.find({
+      where: { userId },
+      select: ['projectId'],
+    });
+
+    if (memberships.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    const userProjectIds = memberships.map((m) => m.projectId);
+    let targetProjectIds = userProjectIds;
+
+    if (query.projectId && query.projectId !== 'ALL') {
+      if (!userProjectIds.includes(query.projectId)) {
+        return { data: [], total: 0 };
+      }
+      targetProjectIds = [query.projectId];
+    }
+
+    const qb = this.documentRepository.createQueryBuilder('doc');
+    qb.leftJoinAndSelect('doc.project', 'project');
+    qb.leftJoinAndSelect('doc.creator', 'creator');
+    qb.leftJoinAndSelect('doc.updater', 'updater');
+    qb.where('doc.projectId IN (:...targetProjectIds)', { targetProjectIds });
+    qb.andWhere('doc.deletedAt IS NULL');
+
+    if (query.createdBy && query.createdBy !== 'ALL') {
+      qb.andWhere('(doc.createdBy = :createdBy OR creator.displayName ILIKE :createdByName)', {
+        createdBy: query.createdBy,
+        createdByName: `%${query.createdBy}%`,
+      });
+    }
+
+    if (query.mimeType) {
+      qb.andWhere('doc.mimeType = :mimeType', { mimeType: query.mimeType });
+    }
+
+    if (query.fileType && query.fileType !== 'ALL') {
+      const ft = query.fileType.toLowerCase();
+      if (ft === 'pdf') {
+        qb.andWhere('doc.originalFilename ILIKE :ext', { ext: '%.pdf' });
+      } else if (ft === 'png' || ft === 'image') {
+        qb.andWhere(
+          "(doc.originalFilename ILIKE '%.png' OR doc.originalFilename ILIKE '%.jpg' OR doc.originalFilename ILIKE '%.jpeg')",
+        );
+      } else if (ft === 'docx' || ft === 'word') {
+        qb.andWhere("(doc.originalFilename ILIKE '%.docx' OR doc.originalFilename ILIKE '%.doc')");
+      } else if (ft === 'xlsx' || ft === 'excel') {
+        qb.andWhere(
+          "(doc.originalFilename ILIKE '%.xlsx' OR doc.originalFilename ILIKE '%.xls' OR doc.originalFilename ILIKE '%.csv')",
+        );
+      } else if (ft === 'pptx' || ft === 'presentation') {
+        qb.andWhere("(doc.originalFilename ILIKE '%.pptx' OR doc.originalFilename ILIKE '%.ppt')");
+      }
+    }
+
+    if (query.processingStatus) {
+      qb.andWhere('doc.processingStatus = :processingStatus', {
+        processingStatus: query.processingStatus,
+      });
+    }
+
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      qb.andWhere('(doc.title ILIKE :searchLike OR doc.originalFilename ILIKE :searchLike)', {
+        searchLike: `%${term}%`,
+      });
+    }
+
+    const sortCol = (query.sortBy && SORT_COLUMN_MAP[query.sortBy]) || 'doc.createdAt';
+    const sortDir = query.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    qb.orderBy(sortCol, sortDir);
+    qb.addOrderBy('doc.id', 'ASC');
+
     qb.skip((page - 1) * pageSize).take(pageSize);
 
     const [data, total] = await qb.getManyAndCount();

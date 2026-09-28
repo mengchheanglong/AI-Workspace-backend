@@ -2284,6 +2284,33 @@
             }
           },
           {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3",
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "pdf",
+              "type": "string"
+            }
+          },
+          {
             "name": "processingStatus",
             "required": false,
             "in": "query",
@@ -4160,6 +4187,30 @@
           "version": {
             "type": "number",
             "example": 1
+          },
+          "project": {
+            "type": "object",
+            "example": {
+              "id": "uuid",
+              "name": "AI Project Workspace",
+              "key": "AIW"
+            }
+          },
+          "creator": {
+            "type": "object",
+            "example": {
+              "id": "uuid",
+              "displayName": "Panhavorn",
+              "email": "panhavorn@example.com"
+            }
+          },
+          "updater": {
+            "type": "object",
+            "example": {
+              "id": "uuid",
+              "displayName": "Meng Fong",
+              "email": "mengfong@example.com"
+            }
           },
           "createdAt": {
             "type": "string",
