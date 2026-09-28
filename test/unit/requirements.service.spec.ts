@@ -10,7 +10,10 @@ import {
 } from '../../src/modules/requirements/entities/requirement.entity';
 import { RequirementRevision } from '../../src/modules/requirements/entities/requirement-revision.entity';
 import { Project } from '../../src/modules/projects/entities/project.entity';
-import { ProjectRole } from '../../src/modules/projects/entities/project-member.entity';
+import {
+  ProjectMember,
+  ProjectRole,
+} from '../../src/modules/projects/entities/project-member.entity';
 import { AuditService } from '../../src/modules/audit/audit.service';
 import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 
@@ -61,6 +64,10 @@ describe('RequirementsService', () => {
     findOne: jest.fn(),
   };
 
+  const mockMemberRepo = {
+    find: jest.fn(),
+  };
+
   const mockAuditService = {
     record: jest.fn().mockResolvedValue(undefined),
   };
@@ -90,6 +97,7 @@ describe('RequirementsService', () => {
         { provide: getRepositoryToken(Requirement), useValue: mockRequirementRepo },
         { provide: getRepositoryToken(RequirementRevision), useValue: mockRevisionRepo },
         { provide: getRepositoryToken(Project), useValue: mockProjectRepo },
+        { provide: getRepositoryToken(ProjectMember), useValue: mockMemberRepo },
         { provide: AuditService, useValue: mockAuditService },
         { provide: OutboxService, useValue: mockOutboxService },
         { provide: DataSource, useValue: mockDataSource },

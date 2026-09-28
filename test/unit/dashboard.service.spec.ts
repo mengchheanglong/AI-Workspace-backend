@@ -122,6 +122,7 @@ describe('DashboardService (Unit)', () => {
 
       expect(result.requirementCountsByStatus).toEqual({
         DRAFT: 1,
+        IN_REVIEW: 0,
         APPROVED: 1,
         IN_PROGRESS: 1,
         DONE: 0,
