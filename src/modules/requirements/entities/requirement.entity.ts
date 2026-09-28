@@ -16,6 +16,7 @@ import { RequirementRevision } from './requirement-revision.entity';
 
 export enum RequirementStatus {
   DRAFT = 'DRAFT',
+  IN_REVIEW = 'IN_REVIEW',
   APPROVED = 'APPROVED',
   IN_PROGRESS = 'IN_PROGRESS',
   DONE = 'DONE',

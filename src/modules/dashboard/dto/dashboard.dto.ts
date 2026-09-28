@@ -50,6 +50,9 @@ export class RequirementCountsByStatusDto {
   @ApiProperty({ example: 1 })
   DRAFT!: number;
 
+  @ApiProperty({ example: 1 })
+  IN_REVIEW!: number;
+
   @ApiProperty({ example: 2 })
   APPROVED!: number;
 

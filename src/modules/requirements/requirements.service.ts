@@ -9,7 +9,7 @@ import { DataSource, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { Requirement, RequirementStatus, Priority } from './entities/requirement.entity';
 import { RequirementRevision } from './entities/requirement-revision.entity';
 import { Project } from '../projects/entities/project.entity';
-import { ProjectRole } from '../projects/entities/project-member.entity';
+import { ProjectMember, ProjectRole } from '../projects/entities/project-member.entity';
 import { CreateRequirementDto } from './dto/create-requirement.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { ListRequirementsQueryDto } from './dto/list-requirements-query.dto';
@@ -35,6 +35,8 @@ export class RequirementsService {
     private readonly revisionRepository: Repository<RequirementRevision>,
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
+    @InjectRepository(ProjectMember)
+    private readonly memberRepository: Repository<ProjectMember>,
     private readonly auditService: AuditService,
     private readonly outboxService: OutboxService,
     private readonly dataSource: DataSource,
@@ -125,7 +127,60 @@ export class RequirementsService {
 
     const qb: SelectQueryBuilder<Requirement> = this.requirementRepository
       .createQueryBuilder('requirement')
+      .leftJoinAndSelect('requirement.project', 'project')
+      .leftJoinAndSelect('requirement.updater', 'updater')
+      .leftJoinAndSelect('requirement.creator', 'creator')
       .where('requirement.projectId = :projectId', { projectId })
+      .andWhere('requirement.deletedAt IS NULL');
+
+    if (query.status) {
+      qb.andWhere('requirement.status = :status', { status: query.status });
+    }
+    if (query.priority) {
+      qb.andWhere('requirement.priority = :priority', { priority: query.priority });
+    }
+    if (query.search) {
+      qb.andWhere(
+        `to_tsvector('english', coalesce(requirement.title, '') || ' ' || coalesce(requirement.description, '')) @@ plainto_tsquery('english', :search)`,
+        { search: query.search },
+      );
+    }
+
+    const sortColumn = SORT_COLUMN_MAP[sortBy] ?? 'requirement.number';
+    qb.orderBy(sortColumn, sortOrder).addOrderBy('requirement.id', 'ASC');
+
+    qb.skip((page - 1) * pageSize).take(pageSize);
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total };
+  }
+
+  async listAllUserRequirements(
+    userId: string,
+    query: ListRequirementsQueryDto,
+  ): Promise<{ data: Requirement[]; total: number }> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 100;
+    const sortBy = query.sortBy ?? 'number';
+    const sortOrder = query.sortOrder ?? 'ASC';
+
+    const memberships = await this.memberRepository.find({
+      where: { userId },
+      select: ['projectId'],
+    });
+
+    if (memberships.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    const projectIds = memberships.map((m) => m.projectId);
+
+    const qb: SelectQueryBuilder<Requirement> = this.requirementRepository
+      .createQueryBuilder('requirement')
+      .leftJoinAndSelect('requirement.project', 'project')
+      .leftJoinAndSelect('requirement.updater', 'updater')
+      .leftJoinAndSelect('requirement.creator', 'creator')
+      .where('requirement.projectId IN (:...projectIds)', { projectIds })
       .andWhere('requirement.deletedAt IS NULL');
 
     if (query.status) {

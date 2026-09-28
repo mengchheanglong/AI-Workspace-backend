@@ -44,6 +44,27 @@ export class RequirementResponseDto {
   @ApiProperty({ example: '2026-09-09T10:00:00.000Z' })
   updatedAt!: string;
 
+  @ApiPropertyOptional({ description: 'Associated project information' })
+  project?: {
+    id: string;
+    name: string;
+    key: string;
+  };
+
+  @ApiPropertyOptional({ description: 'User who created this requirement' })
+  creator?: {
+    id: string;
+    displayName: string;
+    email: string;
+  };
+
+  @ApiPropertyOptional({ description: 'User who last updated this requirement' })
+  updater?: {
+    id: string;
+    displayName: string;
+    email: string;
+  };
+
   static fromEntity(requirement: Requirement, projectKey: string): RequirementResponseDto {
     return {
       id: requirement.id,
@@ -58,6 +79,27 @@ export class RequirementResponseDto {
       createdBy: requirement.createdBy,
       updatedBy: requirement.updatedBy,
       version: requirement.version,
+      project: requirement.project
+        ? {
+            id: requirement.project.id,
+            name: requirement.project.name,
+            key: requirement.project.key,
+          }
+        : undefined,
+      creator: requirement.creator
+        ? {
+            id: requirement.creator.id,
+            displayName: requirement.creator.displayName,
+            email: requirement.creator.email,
+          }
+        : undefined,
+      updater: requirement.updater
+        ? {
+            id: requirement.updater.id,
+            displayName: requirement.updater.displayName,
+            email: requirement.updater.email,
+          }
+        : undefined,
       createdAt:
         requirement.createdAt instanceof Date
           ? requirement.createdAt.toISOString()

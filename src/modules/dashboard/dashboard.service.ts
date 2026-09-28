@@ -128,6 +128,7 @@ export class DashboardService {
     // Requirement counts by status
     const requirementCounts: RequirementCountsByStatusDto = {
       DRAFT: 0,
+      IN_REVIEW: 0,
       APPROVED: 0,
       IN_PROGRESS: 0,
       DONE: 0,

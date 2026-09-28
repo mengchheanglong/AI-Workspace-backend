@@ -931,6 +931,7 @@
               "type": "string",
               "enum": [
                 "DRAFT",
+                "IN_REVIEW",
                 "APPROVED",
                 "IN_PROGRESS",
                 "DONE",
@@ -3770,6 +3771,7 @@
             "type": "string",
             "enum": [
               "DRAFT",
+              "IN_REVIEW",
               "APPROVED",
               "IN_PROGRESS",
               "DONE",
