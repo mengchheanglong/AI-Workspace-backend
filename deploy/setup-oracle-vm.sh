@@ -159,16 +159,38 @@ if [ ! -f "${INSTALL_DIR}/.env.production" ]; then
         read -r CUSTOM_DOMAIN
     fi
 
-    POSTGRES_PWD=$(openssl rand -hex 20)
-    ADMIN_PWD=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9!@#%^&' | head -c 14)
-    ADMIN_EMAIL="admin@aiworkspace.local"
+    # Database choice (Supabase vs local Docker)
+    DB_CHOICE="2"
+    SUPABASE_URL_INPUT=""
+    if [ -t 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Which PostgreSQL database would you like to use?${NC}"
+        echo "  1) Supabase (Cloud Managed PostgreSQL + pgvector)"
+        echo "  2) Built-in Docker PostgreSQL (Self-hosted on this VM)"
+        echo -n "Select option [1 or 2, default 2]: "
+        read -r DB_CHOICE
+    fi
 
-    if [ -n "$CUSTOM_DOMAIN" ]; then
-        APP_ORIGIN="https://${CUSTOM_DOMAIN}"
-        DOMAIN="${CUSTOM_DOMAIN}"
+    if [ "$DB_CHOICE" = "1" ]; then
+        log_info "Using Supabase for PostgreSQL database."
+        if [ -t 0 ]; then
+            echo -e "${YELLOW}Enter your Supabase Session Pooler connection string:${NC}"
+            echo "Format: postgresql://postgres.yfwjdjlrqvykxzsvfpwj:[YOUR-PASSWORD]@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+            echo -n "DATABASE_URL: "
+            read -r SUPABASE_URL_INPUT
+        fi
+        DATABASE_URL="${SUPABASE_URL_INPUT}"
+        POSTGRES_USER="postgres"
+        POSTGRES_PWD=""
+        POSTGRES_DB="postgres"
+        # Use Supabase compose manifest (without local postgres container)
+        cp "${INSTALL_DIR}/backend/deploy/docker-compose.supabase.yml" "${INSTALL_DIR}/docker-compose.prod.yml"
     else
-        APP_ORIGIN="http://${PUBLIC_IP}"
-        DOMAIN="http://"
+        log_info "Using built-in Docker PostgreSQL with pgvector."
+        DATABASE_URL="postgresql://ai_workspace:${POSTGRES_PWD}@postgres:5432/ai_workspace"
+        POSTGRES_USER="ai_workspace"
+        POSTGRES_DB="ai_workspace"
+        cp "${INSTALL_DIR}/backend/deploy/docker-compose.prod.yml" "${INSTALL_DIR}/docker-compose.prod.yml"
     fi
 
     cat <<EOF > "${INSTALL_DIR}/.env.production"
@@ -182,12 +204,12 @@ HOST=0.0.0.0
 LOG_LEVEL=info
 
 # Database
-POSTGRES_USER=ai_workspace
+POSTGRES_USER=${POSTGRES_USER}
 POSTGRES_PASSWORD=${POSTGRES_PWD}
-POSTGRES_DB=ai_workspace
-DATABASE_URL=postgresql://ai_workspace:${POSTGRES_PWD}@postgres:5432/ai_workspace
+POSTGRES_DB=${POSTGRES_DB}
+DATABASE_URL=${DATABASE_URL}
 
-# Redis
+# Redis (Built-in Docker Redis)
 REDIS_URL=redis://redis:6379
 
 # Storage

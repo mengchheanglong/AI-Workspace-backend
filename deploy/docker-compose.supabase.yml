@@ -1,0 +1,114 @@
+name: ai-workspace
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: ai-workspace-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:-http://}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai-workspace-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - app-network
+
+  migrate:
+    build:
+      context: ${BACKEND_DIR:-./backend}
+      dockerfile: Dockerfile
+    image: ai-workspace-backend:prod
+    container_name: ai-workspace-migrate
+    command: ['pnpm', 'migration:run:prod']
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: production
+    networks:
+      - app-network
+    restart: 'no'
+
+  backend:
+    build:
+      context: ${BACKEND_DIR:-./backend}
+      dockerfile: Dockerfile
+    image: ai-workspace-backend:prod
+    container_name: ai-workspace-backend
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    volumes:
+      - upload_data:/app/var/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ${FRONTEND_DIR:-./frontend}
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+    image: ai-workspace-frontend:prod
+    container_name: ai-workspace-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      HOSTNAME: '0.0.0.0'
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+      BACKEND_INTERNAL_URL: http://backend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  redis_data:
+  upload_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app-network:
+    driver: bridge
