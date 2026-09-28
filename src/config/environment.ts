@@ -55,6 +55,10 @@ const schema = z
     AI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
     AI_EMBEDDING_DIMENSIONS: z.coerce.number().int().default(1536),
     AI_DAILY_PROJECT_BUDGET_USD: emptyStringToUndefined(z.coerce.number().optional()),
+    SUPABASE_URL: emptyStringToUndefined(z.string().url().optional()),
+    SUPABASE_PUBLISHABLE_KEY: emptyStringToUndefined(z.string().optional()),
+    SUPABASE_SECRET_KEY: emptyStringToUndefined(z.string().optional()),
+    SUPABASE_JWKS_URL: emptyStringToUndefined(z.string().url().optional()),
   })
   .superRefine((value, context) => {
     if (value.GITHUB_ENABLED && !value.GITHUB_USE_MOCK) {

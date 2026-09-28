@@ -43,7 +43,9 @@ async function main() {
     `);
 
     if (migrationTable.length > 0) {
-      const migrations = await dataSource.query('SELECT name FROM schema_migrations ORDER BY timestamp ASC;');
+      const migrations = await dataSource.query(
+        'SELECT name FROM schema_migrations ORDER BY timestamp ASC;',
+      );
       console.log(`📑 Migrations applied: ${migrations.length}`);
     } else {
       console.log('ℹ️  No migrations applied yet. Run: pnpm migration:run to apply them.');
@@ -54,7 +56,9 @@ async function main() {
     console.error('\n❌ Connection failed:');
     console.error(error.message);
     if (error.message.includes('ssl') || error.message.includes('SSL')) {
-      console.log('\n💡 Tip: For Supabase, ensure your connection string ends with ?sslmode=require');
+      console.log(
+        '\n💡 Tip: For Supabase, ensure your connection string ends with ?sslmode=require',
+      );
     }
     process.exit(1);
   } finally {
