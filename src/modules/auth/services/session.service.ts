@@ -140,12 +140,16 @@ export class SessionService {
 
   getCookieName(): string {
     const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
-    return nodeEnv === 'production' ? '__Host-aiws_session' : 'aiws_session';
+    const appOrigin = this.configService.get('APP_ORIGIN', { infer: true });
+    const isHttps = typeof appOrigin === 'string' && appOrigin.startsWith('https://');
+    return nodeEnv === 'production' && isHttps ? '__Host-aiws_session' : 'aiws_session';
   }
 
   getCookieOptions(): CookieOptions {
     const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
-    const isProd = nodeEnv === 'production';
+    const appOrigin = this.configService.get('APP_ORIGIN', { infer: true });
+    const isHttps = typeof appOrigin === 'string' && appOrigin.startsWith('https://');
+    const isProd = nodeEnv === 'production' && isHttps;
     const absoluteDays = this.configService.get('SESSION_ABSOLUTE_DAYS', { infer: true });
 
     return {

@@ -4,11 +4,11 @@ const path = require('path');
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 }
+    viewport: { width: 1440, height: 900 },
   });
   const page = await context.newPage();
 
-  page.on('console', msg => console.log('BROWSER LOG:', msg.type(), msg.text()));
+  page.on('console', (msg) => console.log('BROWSER LOG:', msg.type(), msg.text()));
 
   console.log('Logging in...');
   await page.goto('http://localhost:3002/login', { waitUntil: 'networkidle' });
@@ -21,7 +21,9 @@ async function main() {
   await page.goto('http://localhost:3002/tasks', { waitUntil: 'networkidle' });
   await page.waitForTimeout(3000);
 
-  const artifactDir = path.resolve('C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f');
+  const artifactDir = path.resolve(
+    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f',
+  );
 
   // Find column elements
   const columns = await page.$$('.rounded-2xl.p-3');
@@ -52,20 +54,26 @@ async function main() {
   }
 
   // Capture in-flight drag screenshot
-  await page.screenshot({ path: path.join(artifactDir, 'tasks_kanban_dragging_active.png'), fullPage: false });
+  await page.screenshot({
+    path: path.join(artifactDir, 'tasks_kanban_dragging_active.png'),
+    fullPage: false,
+  });
   console.log('In-flight drag screenshot captured.');
 
   await page.waitForTimeout(200);
   await page.mouse.up();
   await page.waitForTimeout(2500);
 
-  await page.screenshot({ path: path.join(artifactDir, 'tasks_kanban_drag_drop_verified.png'), fullPage: false });
+  await page.screenshot({
+    path: path.join(artifactDir, 'tasks_kanban_drag_drop_verified.png'),
+    fullPage: false,
+  });
   console.log('Drag and Drop verified! Settled screenshot captured.');
 
   await browser.close();
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Error during DnD verification:', err);
   process.exit(1);
 });

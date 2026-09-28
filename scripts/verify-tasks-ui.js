@@ -4,11 +4,11 @@ const path = require('path');
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 }
+    viewport: { width: 1440, height: 900 },
   });
   const page = await context.newPage();
-  page.on('console', msg => console.log('BROWSER LOG:', msg.type(), msg.text()));
-  page.on('response', async res => {
+  page.on('console', (msg) => console.log('BROWSER LOG:', msg.type(), msg.text()));
+  page.on('response', async (res) => {
     if (res.url().includes('/tasks')) {
       console.log('TASKS RESPONSE URL:', res.url(), 'STATUS:', res.status());
       try {
@@ -33,11 +33,16 @@ async function main() {
   await page.goto('http://localhost:3002/tasks', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2000);
 
-  const artifactDir = path.resolve('C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f');
+  const artifactDir = path.resolve(
+    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f',
+  );
 
   // Screenshot 1: Board View default (collapsed)
   console.log('Capturing board view default...');
-  await page.screenshot({ path: path.join(artifactDir, 'tasks_new_board_view.png'), fullPage: false });
+  await page.screenshot({
+    path: path.join(artifactDir, 'tasks_new_board_view.png'),
+    fullPage: false,
+  });
 
   // Expand TO DO
   const todoExpand = await page.$('text=+ 4 more');
@@ -45,7 +50,10 @@ async function main() {
     console.log('Expanding TO DO column...');
     await todoExpand.click();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(artifactDir, 'tasks_new_board_todo_expanded.png'), fullPage: false });
+    await page.screenshot({
+      path: path.join(artifactDir, 'tasks_new_board_todo_expanded.png'),
+      fullPage: false,
+    });
     // collapse back
     const showLess = await page.$('text=Show less');
     if (showLess) await showLess.click();
@@ -58,7 +66,10 @@ async function main() {
   if (listBtn) {
     await listBtn.click();
     await page.waitForTimeout(1000);
-    await page.screenshot({ path: path.join(artifactDir, 'tasks_new_list_view.png'), fullPage: false });
+    await page.screenshot({
+      path: path.join(artifactDir, 'tasks_new_list_view.png'),
+      fullPage: false,
+    });
   }
 
   console.log('Verification screenshots captured successfully!');

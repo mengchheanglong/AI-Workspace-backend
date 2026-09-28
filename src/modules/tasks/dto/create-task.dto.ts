@@ -53,7 +53,10 @@ export class CreateTaskDto {
   @IsUUID()
   sourceMeetingId?: string;
 
-  @ApiPropertyOptional({ example: 'Waiting on Phase 2 scope decision', description: 'Reason why the task is blocked' })
+  @ApiPropertyOptional({
+    example: 'Waiting on Phase 2 scope decision',
+    description: 'Reason why the task is blocked',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)

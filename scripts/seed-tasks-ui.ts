@@ -20,9 +20,17 @@ async function seedTasksUI() {
 
     const usersData = [
       { email: 'admin@example.com', displayName: 'System Admin', role: ProfessionalRole.PM },
-      { email: 'panhavorn@example.com', displayName: 'Panhavorn', role: ProfessionalRole.DEVELOPER },
+      {
+        email: 'panhavorn@example.com',
+        displayName: 'Panhavorn',
+        role: ProfessionalRole.DEVELOPER,
+      },
       { email: 'mengfong@example.com', displayName: 'Meng Fong', role: ProfessionalRole.DEVELOPER },
-      { email: 'mengchheang@example.com', displayName: 'Mengchheang', role: ProfessionalRole.DEVELOPER },
+      {
+        email: 'mengchheang@example.com',
+        displayName: 'Mengchheang',
+        role: ProfessionalRole.DEVELOPER,
+      },
       { email: 'john@example.com', displayName: 'John Smith', role: ProfessionalRole.QA },
       { email: 'jane@example.com', displayName: 'Jane Doe', role: ProfessionalRole.DX },
     ];
@@ -54,9 +62,21 @@ async function seedTasksUI() {
 
     // ── Projects ───────────────────────────────────────────────────────────
     const projectsData = [
-      { key: 'AIW', name: 'AI Project Workspace', desc: 'Primary collaboration workspace for AI system delivery' },
-      { key: 'COR', name: 'Client Onboarding Revamp', desc: 'Streamline customer intake and onboarding workflows' },
-      { key: 'ISG', name: 'Internal Style Guide', desc: 'Design system, component tokens, and accessibility specs' },
+      {
+        key: 'AIW',
+        name: 'AI Project Workspace',
+        desc: 'Primary collaboration workspace for AI system delivery',
+      },
+      {
+        key: 'COR',
+        name: 'Client Onboarding Revamp',
+        desc: 'Streamline customer intake and onboarding workflows',
+      },
+      {
+        key: 'ISG',
+        name: 'Internal Style Guide',
+        desc: 'Design system, component tokens, and accessibility specs',
+      },
     ];
 
     const projects: Record<string, Project> = {};
@@ -97,9 +117,14 @@ async function seedTasksUI() {
     const isg = projects['ISG']!;
 
     // Clean existing tasks
-    await taskRepo.createQueryBuilder().delete().from(Task).where('projectId IN (:...ids)', {
-      ids: [aiw.id, cor.id, isg.id],
-    }).execute();
+    await taskRepo
+      .createQueryBuilder()
+      .delete()
+      .from(Task)
+      .where('projectId IN (:...ids)', {
+        ids: [aiw.id, cor.id, isg.id],
+      })
+      .execute();
 
     // ── 31 Exact Tasks matching reference designs ───────────────────────────
     const allTasks = [
@@ -386,14 +411,22 @@ async function seedTasksUI() {
 
     console.log(`✅ Successfully seeded ${allTasks.length} tasks across 3 active projects!`);
     console.log('Project breakdown:');
-    console.log(`- AI Project Workspace (AIW): ${allTasks.filter(t => t.project.key === 'AIW').length} tasks`);
-    console.log(`- Client Onboarding Revamp (COR): ${allTasks.filter(t => t.project.key === 'COR').length} tasks`);
-    console.log(`- Internal Style Guide (ISG): ${allTasks.filter(t => t.project.key === 'ISG').length} tasks`);
+    console.log(
+      `- AI Project Workspace (AIW): ${allTasks.filter((t) => t.project.key === 'AIW').length} tasks`,
+    );
+    console.log(
+      `- Client Onboarding Revamp (COR): ${allTasks.filter((t) => t.project.key === 'COR').length} tasks`,
+    );
+    console.log(
+      `- Internal Style Guide (ISG): ${allTasks.filter((t) => t.project.key === 'ISG').length} tasks`,
+    );
     console.log('Status breakdown:');
-    console.log(`- TO DO: ${allTasks.filter(t => t.status === TaskStatus.TODO).length}`);
-    console.log(`- IN PROGRESS: ${allTasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length}`);
-    console.log(`- DONE: ${allTasks.filter(t => t.status === TaskStatus.DONE).length}`);
-    console.log(`- BLOCKED: ${allTasks.filter(t => t.status === TaskStatus.BLOCKED).length}`);
+    console.log(`- TO DO: ${allTasks.filter((t) => t.status === TaskStatus.TODO).length}`);
+    console.log(
+      `- IN PROGRESS: ${allTasks.filter((t) => t.status === TaskStatus.IN_PROGRESS).length}`,
+    );
+    console.log(`- DONE: ${allTasks.filter((t) => t.status === TaskStatus.DONE).length}`);
+    console.log(`- BLOCKED: ${allTasks.filter((t) => t.status === TaskStatus.BLOCKED).length}`);
   } finally {
     await AppDataSource.destroy();
   }

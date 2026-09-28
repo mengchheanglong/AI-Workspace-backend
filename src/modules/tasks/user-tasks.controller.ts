@@ -25,10 +25,7 @@ export class UserTasksController {
   @ApiOperation({ summary: 'List tasks across all active projects for the current user' })
   @ApiOkResponse({ description: 'Tasks returned' })
   @ApiUnauthorizedResponse({ description: 'Authentication required' })
-  async listUserTasks(
-    @CurrentUser() user: User,
-    @Query() query: ListTasksQueryDto,
-  ) {
+  async listUserTasks(@CurrentUser() user: User, @Query() query: ListTasksQueryDto) {
     const { data, total } = await this.tasksService.listAllUserTasks(user.id, query);
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 100;

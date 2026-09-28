@@ -127,6 +127,21 @@ docs/openapi.json             # Actual generated contract
 
 Do not put domain business logic in `common`. Add feature modules with their DTOs, services, entities, policies, and behavior tests as the guide's milestones progress.
 
+## Production Deployment (Oracle Cloud Always Free)
+
+Turnkey deployment configuration is located in the [`deploy/`](deploy/) directory for **Oracle Cloud Infrastructure (OCI) Always Free** (Ampere A1 ARM: 4 OCPU, 24 GB RAM, 200 GB NVMe - $0/month):
+
+- **Automated Setup Script**: [`deploy/setup-oracle-vm.sh`](deploy/setup-oracle-vm.sh)
+- **Deployment Guide**: [`deploy/DEPLOYMENT_GUIDE.md`](deploy/DEPLOYMENT_GUIDE.md)
+- **Production Compose**: [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml)
+- **Caddy Reverse Proxy**: [`deploy/Caddyfile`](deploy/Caddyfile)
+
+To deploy on a new Ubuntu Oracle Cloud VM:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/mengchheanglong/AI-Workspace-backend/main/deploy/setup-oracle-vm.sh | bash
+```
+
 ## Troubleshooting
 
 - **Docker connection failure:** start Docker Desktop/the Docker engine, then rerun `pnpm db:up`.

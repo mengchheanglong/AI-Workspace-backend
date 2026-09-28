@@ -1,0 +1,45 @@
+# ==============================================================================
+# Caddy Reverse Proxy Configuration for AI Workspace
+# ==============================================================================
+# Automatic HTTPS:
+# - If DOMAIN is set to a hostname (e.g., ai.example.com), Caddy automatically
+#   obtains and renews Let's Encrypt / ZeroSSL TLS certificates on port 443.
+# - If DOMAIN is not set or begins with http://, Caddy serves HTTP on port 80.
+# ==============================================================================
+
+{
+    admin off
+}
+
+{$DOMAIN:http://} {
+    encode zstd gzip
+
+    # Request body limit for document uploads (30 MB buffer for 20 MB max file size)
+    request_body {
+        max_size 30MB
+    }
+
+    # Health check endpoint for monitors and load balancers
+    handle /healthz {
+        respond "OK" 200
+    }
+
+    # Backend API endpoints (/api/v1/*) and Swagger documentation (/api/docs*)
+    handle /api/* {
+        reverse_proxy backend:3000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host {upstream_hostport}
+        }
+    }
+
+    # Frontend Next.js application (App Router, static assets, client pages)
+    handle {
+        reverse_proxy frontend:3000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}
