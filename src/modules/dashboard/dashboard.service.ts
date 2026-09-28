@@ -87,6 +87,7 @@ export class DashboardService {
       IN_REVIEW: 0,
       DONE: 0,
       CANCELLED: 0,
+      BLOCKED: 0,
     };
 
     let overdueTasksCount = 0;

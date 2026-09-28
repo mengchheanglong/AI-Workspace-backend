@@ -114,6 +114,7 @@ describe('DashboardService (Unit)', () => {
         IN_REVIEW: 0,
         DONE: 2,
         CANCELLED: 1,
+        BLOCKED: 0,
       });
 
       expect(result.overdueTasksCount).toBe(1); // only t3 (t1 and t5 are closed)

@@ -1643,7 +1643,8 @@
                 "IN_PROGRESS",
                 "IN_REVIEW",
                 "DONE",
-                "CANCELLED"
+                "CANCELLED",
+                "BLOCKED"
               ]
             }
           },
@@ -3883,7 +3884,8 @@
               "IN_PROGRESS",
               "IN_REVIEW",
               "DONE",
-              "CANCELLED"
+              "CANCELLED",
+              "BLOCKED"
             ],
             "default": "TODO"
           },
@@ -3913,6 +3915,11 @@
           "sourceMeetingId": {
             "type": "string",
             "description": "UUID of source meeting in same project"
+          },
+          "blockedReason": {
+            "type": "string",
+            "example": "Waiting on Phase 2 scope decision",
+            "description": "Reason why the task is blocked"
           }
         },
         "required": [
@@ -3945,7 +3952,8 @@
               "IN_PROGRESS",
               "IN_REVIEW",
               "DONE",
-              "CANCELLED"
+              "CANCELLED",
+              "BLOCKED"
             ]
           },
           "priority": {
@@ -3976,6 +3984,12 @@
           "sourceMeetingId": {
             "type": "object",
             "description": "UUID of source meeting in same project",
+            "nullable": true
+          },
+          "blockedReason": {
+            "type": "object",
+            "example": "Waiting on Phase 2 scope decision",
+            "description": "Reason why the task is blocked",
             "nullable": true
           }
         },

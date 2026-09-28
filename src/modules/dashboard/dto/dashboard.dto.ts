@@ -41,6 +41,9 @@ export class TaskCountsByStatusDto {
 
   @ApiProperty({ example: 0 })
   CANCELLED!: number;
+
+  @ApiProperty({ example: 0 })
+  BLOCKED!: number;
 }
 
 export class RequirementCountsByStatusDto {

@@ -76,6 +76,7 @@ export class TasksService {
         description: dto.description?.trim() ?? null,
         status: dto.status ?? TaskStatus.TODO,
         priority: dto.priority ?? Priority.MEDIUM,
+        blockedReason: dto.blockedReason ? dto.blockedReason.trim() : null,
         assigneeId: dto.assigneeId ?? null,
         dueDate: dto.dueDate ?? null,
         requirementId: dto.requirementId ?? null,
@@ -134,12 +135,14 @@ export class TasksService {
     query: ListTasksQueryDto,
   ): Promise<{ data: Task[]; total: number }> {
     const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+    const pageSize = query.pageSize ?? 100;
     const sortBy = query.sortBy ?? 'number';
     const sortOrder = query.sortOrder ?? 'DESC';
 
     const qb: SelectQueryBuilder<Task> = this.taskRepository
       .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignee', 'assignee')
+      .leftJoinAndSelect('task.project', 'project')
       .where('task.projectId = :projectId', { projectId })
       .andWhere('task.deletedAt IS NULL');
 
@@ -176,9 +179,62 @@ export class TasksService {
     return { data, total };
   }
 
+  async listAllUserTasks(
+    userId: string,
+    query: ListTasksQueryDto,
+  ): Promise<{ data: Task[]; total: number }> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 100;
+    const sortBy = query.sortBy ?? 'number';
+    const sortOrder = query.sortOrder ?? 'DESC';
+
+    const memberships = await this.memberRepository.find({
+      where: { userId },
+      select: ['projectId'],
+    });
+
+    if (memberships.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    const projectIds = memberships.map((m) => m.projectId);
+
+    const qb: SelectQueryBuilder<Task> = this.taskRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignee', 'assignee')
+      .leftJoinAndSelect('task.project', 'project')
+      .where('task.projectId IN (:...projectIds)', { projectIds })
+      .andWhere('task.deletedAt IS NULL');
+
+    if (query.status) {
+      qb.andWhere('task.status = :status', { status: query.status });
+    }
+    if (query.priority) {
+      qb.andWhere('task.priority = :priority', { priority: query.priority });
+    }
+    if (query.assigneeId) {
+      qb.andWhere('task.assigneeId = :assigneeId', { assigneeId: query.assigneeId });
+    }
+    if (query.search) {
+      qb.andWhere(
+        `to_tsvector('english', coalesce(task.title, '') || ' ' || coalesce(task.description, '')) @@ plainto_tsquery('english', :search)`,
+        { search: query.search },
+      );
+    }
+
+    const sortColumn = SORT_COLUMN_MAP[sortBy] ?? 'task.number';
+    qb.orderBy(sortColumn, sortOrder).addOrderBy('task.id', 'ASC');
+
+    qb.skip((page - 1) * pageSize).take(pageSize);
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total };
+  }
+
   async getById(projectId: string, taskId: string): Promise<Task> {
     const task = await this.taskRepository.findOne({
       where: { id: taskId, projectId, deletedAt: IsNull() },
+      relations: ['assignee', 'project'],
     });
     if (!task) {
       throw new NotFoundException({
@@ -224,6 +280,11 @@ export class TasksService {
     }
     if (dto.status !== undefined) task.status = dto.status;
     if (dto.priority !== undefined) task.priority = dto.priority;
+    if (dto.blockedReason !== undefined) {
+      task.blockedReason = dto.blockedReason ? dto.blockedReason.trim() : null;
+    } else if (dto.status !== undefined && dto.status !== TaskStatus.BLOCKED) {
+      task.blockedReason = null;
+    }
     if (dto.assigneeId !== undefined) task.assigneeId = dto.assigneeId;
     if (dto.dueDate !== undefined) task.dueDate = dto.dueDate;
     if (dto.requirementId !== undefined) task.requirementId = dto.requirementId;
