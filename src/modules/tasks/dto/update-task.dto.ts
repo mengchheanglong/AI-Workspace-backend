@@ -67,4 +67,10 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsUUID()
   sourceMeetingId?: string | null;
+
+  @ApiPropertyOptional({ example: 'Waiting on Phase 2 scope decision', description: 'Reason why the task is blocked', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  blockedReason?: string | null;
 }

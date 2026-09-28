@@ -29,6 +29,29 @@ export class TaskResponseDto {
   @ApiPropertyOptional({ nullable: true })
   assigneeId!: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Assignee details when loaded',
+    nullable: true,
+  })
+  assignee?: {
+    id: string;
+    displayName: string;
+    email: string;
+  } | null;
+
+  @ApiPropertyOptional({
+    description: 'Project details when loaded',
+    nullable: true,
+  })
+  project?: {
+    id: string;
+    name: string;
+    key: string;
+  } | null;
+
+  @ApiPropertyOptional({ example: 'Waiting on Phase 2 scope decision', nullable: true })
+  blockedReason!: string | null;
+
   @ApiPropertyOptional({ example: '2026-10-15', nullable: true })
   dueDate!: string | null;
 
@@ -58,12 +81,27 @@ export class TaskResponseDto {
       id: task.id,
       projectId: task.projectId,
       number: task.number,
-      displayKey: `${projectKey}-TASK-${task.number}`,
+      displayKey: `${task.project?.key || projectKey}-TASK-${task.number}`,
       title: task.title,
       description: task.description,
       status: task.status,
       priority: task.priority,
       assigneeId: task.assigneeId,
+      assignee: task.assignee
+        ? {
+            id: task.assignee.id,
+            displayName: task.assignee.displayName,
+            email: task.assignee.email,
+          }
+        : null,
+      project: task.project
+        ? {
+            id: task.project.id,
+            name: task.project.name,
+            key: task.project.key,
+          }
+        : null,
+      blockedReason: task.blockedReason ?? null,
       dueDate: task.dueDate,
       requirementId: task.requirementId,
       sourceMeetingId: task.sourceMeetingId,

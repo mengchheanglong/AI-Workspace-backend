@@ -21,6 +21,7 @@ export enum TaskStatus {
   IN_REVIEW = 'IN_REVIEW',
   DONE = 'DONE',
   CANCELLED = 'CANCELLED',
+  BLOCKED = 'BLOCKED',
 }
 
 export { Priority };
@@ -54,6 +55,9 @@ export class Task {
 
   @Column({ type: 'varchar', length: 20, default: Priority.MEDIUM })
   priority!: Priority;
+
+  @Column({ name: 'blocked_reason', type: 'varchar', length: 500, nullable: true })
+  blockedReason?: string | null;
 
   @Column({ name: 'assignee_id', type: 'uuid', nullable: true })
   assigneeId!: string | null;
