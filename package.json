@@ -27,6 +27,7 @@
     "migration:run:prod": "typeorm migration:run -d dist/database/data-source.js",
     "openapi:generate": "ts-node scripts/generate-openapi.ts",
     "seed": "ts-node scripts/seed.ts",
+    "db:test-connection": "ts-node scripts/test-db-connection.ts",
     "db:up": "docker compose up -d --wait postgres",
     "db:test:up": "docker compose --profile test up -d --wait postgres-test",
     "stack:up": "docker compose --profile app up -d --build --wait",
