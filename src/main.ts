@@ -21,10 +21,12 @@ async function bootstrap(): Promise<void> {
   if (config.get('SWAGGER_ENABLED', { infer: true })) {
     SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));
   }
-  const server = await app.listen(
-    config.get('PORT', { infer: true }),
-    config.get('HOST', { infer: true }),
-  );
+  const port = config.get('PORT', { infer: true });
+  const host =
+    process.env.RENDER || process.env.NODE_ENV === 'production'
+      ? '0.0.0.0'
+      : config.get('HOST', { infer: true });
+  const server = await app.listen(port, host);
   server.requestTimeout = 30000;
   server.headersTimeout = 15000;
 }

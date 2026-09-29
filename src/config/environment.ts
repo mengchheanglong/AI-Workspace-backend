@@ -19,8 +19,9 @@ const schema = z
     HOST: z
       .string()
       .min(1)
-      .default(
-        process.env.RENDER || process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1',
+      .default('0.0.0.0')
+      .transform((val) =>
+        process.env.RENDER || process.env.NODE_ENV === 'production' ? '0.0.0.0' : val,
       ),
     APP_ORIGIN: z
       .string()
