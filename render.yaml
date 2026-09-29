@@ -29,7 +29,7 @@ services:
       - key: STORAGE_LOCAL_ROOT
         value: ./var/uploads
       - key: SWAGGER_ENABLED
-        value: "false"
+        value: 'false'
       - key: LOG_LEVEL
         value: info
 
