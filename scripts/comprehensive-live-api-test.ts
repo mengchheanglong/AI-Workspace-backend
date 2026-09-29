@@ -22,7 +22,11 @@ async function request(
   } = {},
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: any; cookies: string[] }> {
   const url = new URL(path.startsWith('http') ? path : `${BASE_URL}${path}`);
-  const payload = options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : null;
+  const payload = options.body
+    ? typeof options.body === 'string'
+      ? options.body
+      : JSON.stringify(options.body)
+    : null;
 
   const headers: Record<string, string> = {
     ...options.headers,
@@ -158,7 +162,10 @@ async function main() {
       body: { email: 'alice@example.com', password: 'Password123!' },
     });
     assert(res.status === 200, `Expected 200 but got ${res.status}`, res.body);
-    assert(res.body.data && res.body.data.user.email === 'alice@example.com', 'User email mismatch');
+    assert(
+      res.body.data && res.body.data.user.email === 'alice@example.com',
+      'User email mismatch',
+    );
     aliceCookies = res.cookies;
     aliceCsrf = res.body?.data?.csrfToken || extractCsrfToken(aliceCookies) || '';
     assert(aliceCsrf.length > 0, 'CSRF token not found in login response or cookies');
@@ -214,10 +221,14 @@ async function main() {
     assert(res.body.data.key === 'AIW', 'Key mismatch');
   });
 
-  await runTest('Projects', 'Get project with invalid UUID format returns 404 (privacy contract)', async () => {
-    const res = await request('GET', '/projects/not-a-valid-uuid', { cookies: aliceCookies });
-    assert(res.status === 404, `Expected 404 for bad UUID format but got ${res.status}`);
-  });
+  await runTest(
+    'Projects',
+    'Get project with invalid UUID format returns 404 (privacy contract)',
+    async () => {
+      const res = await request('GET', '/projects/not-a-valid-uuid', { cookies: aliceCookies });
+      assert(res.status === 404, `Expected 404 for bad UUID format but got ${res.status}`);
+    },
+  );
 
   await runTest('Projects', 'Get non-existent project UUID returns 404', async () => {
     const res = await request('GET', '/projects/00000000-0000-0000-0000-000000000000', {
@@ -235,17 +246,23 @@ async function main() {
     assert(res.status === 409, `Expected 409 for duplicate key but got ${res.status}`);
   });
 
-  await runTest('Projects', 'Reject project creation with invalid key (contains symbols)', async () => {
-    const res = await request('POST', '/projects', {
-      cookies: aliceCookies,
-      headers: { 'x-csrf-token': aliceCsrf },
-      body: { key: 'BAD@KEY', name: 'Invalid Project' },
-    });
-    assert(res.status === 400, `Expected 400 for invalid key but got ${res.status}`);
-  });
+  await runTest(
+    'Projects',
+    'Reject project creation with invalid key (contains symbols)',
+    async () => {
+      const res = await request('POST', '/projects', {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { key: 'BAD@KEY', name: 'Invalid Project' },
+      });
+      assert(res.status === 400, `Expected 400 for invalid key but got ${res.status}`);
+    },
+  );
 
   await runTest('Projects', 'List project members for AIW', async () => {
-    const res = await request('GET', `/projects/${aiwProjectId}/members`, { cookies: aliceCookies });
+    const res = await request('GET', `/projects/${aiwProjectId}/members`, {
+      cookies: aliceCookies,
+    });
     assert(res.status === 200, `Expected 200 but got ${res.status}`);
     assert(Array.isArray(res.body.data) && res.body.data.length > 0, 'Expected members');
   });
@@ -351,14 +368,18 @@ async function main() {
     assert(!res.body.data.blockedReason, 'blockedReason was not cleared');
   });
 
-  await runTest('Tasks', 'Optimistic concurrency: update with stale version returns 409', async () => {
-    const res = await request('PATCH', `/projects/${aiwProjectId}/tasks/${createdTaskId}`, {
-      cookies: aliceCookies,
-      headers: { 'x-csrf-token': aliceCsrf },
-      body: { title: 'Conflicting Edit', version: 1 },
-    });
-    assert(res.status === 409, `Expected 409 Conflict but got ${res.status}`);
-  });
+  await runTest(
+    'Tasks',
+    'Optimistic concurrency: update with stale version returns 409',
+    async () => {
+      const res = await request('PATCH', `/projects/${aiwProjectId}/tasks/${createdTaskId}`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { title: 'Conflicting Edit', version: 1 },
+      });
+      assert(res.status === 409, `Expected 409 Conflict but got ${res.status}`);
+    },
+  );
 
   await runTest('Tasks', 'Reject task creation with non-existent assignee UUID', async () => {
     const res = await request('POST', `/projects/${aiwProjectId}/tasks`, {
@@ -396,21 +417,25 @@ async function main() {
     createdReqId = res.body.data.id;
   });
 
-  await runTest('Requirements', 'Update status through lifecycle: DRAFT -> IN_REVIEW -> APPROVED', async () => {
-    let res = await request('PATCH', `/projects/${aiwProjectId}/requirements/${createdReqId}`, {
-      cookies: aliceCookies,
-      headers: { 'x-csrf-token': aliceCsrf },
-      body: { status: 'IN_REVIEW', version: 1 },
-    });
-    assert(res.status === 200, `Expected 200 for IN_REVIEW but got ${res.status}`);
+  await runTest(
+    'Requirements',
+    'Update status through lifecycle: DRAFT -> IN_REVIEW -> APPROVED',
+    async () => {
+      let res = await request('PATCH', `/projects/${aiwProjectId}/requirements/${createdReqId}`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { status: 'IN_REVIEW', version: 1 },
+      });
+      assert(res.status === 200, `Expected 200 for IN_REVIEW but got ${res.status}`);
 
-    res = await request('PATCH', `/projects/${aiwProjectId}/requirements/${createdReqId}`, {
-      cookies: aliceCookies,
-      headers: { 'x-csrf-token': aliceCsrf },
-      body: { status: 'APPROVED', version: 2 },
-    });
-    assert(res.status === 200, `Expected 200 for APPROVED but got ${res.status}`);
-  });
+      res = await request('PATCH', `/projects/${aiwProjectId}/requirements/${createdReqId}`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { status: 'APPROVED', version: 2 },
+      });
+      assert(res.status === 200, `Expected 200 for APPROVED but got ${res.status}`);
+    },
+  );
 
   await runTest('Requirements', 'Fetch requirement revision history', async () => {
     const res = await request(
@@ -541,21 +566,169 @@ async function main() {
   // 10. EDGE CASES & PRIVACY ISOLATION
   console.log('\n--- 10. Edge Cases & Privacy Isolation ---');
   await runTest('Privacy', 'Accessing non-existent project returns 404', async () => {
-    const res = await request(
-      'GET',
-      '/projects/12345678-1234-1234-1234-123456789abc/tasks',
-      { cookies: aliceCookies },
-    );
+    const res = await request('GET', '/projects/12345678-1234-1234-1234-123456789abc/tasks', {
+      cookies: aliceCookies,
+    });
     assert(res.status === 404, `Expected 404 but got ${res.status}`);
   });
 
-  await runTest('Edge Cases', 'Empty or whitespace task title is rejected', async () => {
+  await runTest('Edge Cases', 'Empty or whitespace task title is rejected on create', async () => {
     const res = await request('POST', `/projects/${aiwProjectId}/tasks`, {
       cookies: aliceCookies,
       headers: { 'x-csrf-token': aliceCsrf },
       body: { title: '     ' },
     });
     assert(res.status === 400, `Expected 400 for whitespace title but got ${res.status}`);
+  });
+
+  await runTest('Edge Cases', 'Empty or whitespace task title is rejected on update', async () => {
+    const res = await request('PATCH', `/projects/${aiwProjectId}/tasks/${createdTaskId}`, {
+      cookies: aliceCookies,
+      headers: { 'x-csrf-token': aliceCsrf },
+      body: { version: 5, title: '     ' },
+    });
+    assert(
+      res.status === 400,
+      `Expected 400 for whitespace task title update but got ${res.status}`,
+    );
+  });
+
+  await runTest(
+    'Edge Cases',
+    'Empty or whitespace requirement title is rejected on update',
+    async () => {
+      const res = await request('PATCH', `/projects/${aiwProjectId}/requirements/${createdReqId}`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { version: 3, title: '     ' },
+      });
+      assert(
+        res.status === 400,
+        `Expected 400 for whitespace requirement title update but got ${res.status}`,
+      );
+    },
+  );
+
+  await runTest(
+    'Edge Cases',
+    'Empty or whitespace decision title/text is rejected on update',
+    async () => {
+      const res = await request(
+        'PATCH',
+        `/projects/${aiwProjectId}/decisions/${createdDecisionId}`,
+        {
+          cookies: aliceCookies,
+          headers: { 'x-csrf-token': aliceCsrf },
+          body: { version: 2, title: '     ' },
+        },
+      );
+      assert(
+        res.status === 400,
+        `Expected 400 for whitespace decision title update but got ${res.status}`,
+      );
+    },
+  );
+
+  await runTest(
+    'Edge Cases',
+    'Empty or whitespace meeting title is rejected on create and update',
+    async () => {
+      const now = new Date();
+      const createRes = await request('POST', `/projects/${aiwProjectId}/meetings`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: {
+          title: '     ',
+          startsAt: now.toISOString(),
+          endsAt: new Date(now.getTime() + 3600000).toISOString(),
+        },
+      });
+      assert(
+        createRes.status === 400,
+        `Expected 400 for whitespace meeting create but got ${createRes.status}`,
+      );
+
+      const updateRes = await request(
+        'PATCH',
+        `/projects/${aiwProjectId}/meetings/${createdMeetingId}`,
+        {
+          cookies: aliceCookies,
+          headers: { 'x-csrf-token': aliceCsrf },
+          body: { version: 1, title: '     ' },
+        },
+      );
+      assert(
+        updateRes.status === 400,
+        `Expected 400 for whitespace meeting update but got ${updateRes.status}`,
+      );
+    },
+  );
+
+  await runTest(
+    'Edge Cases',
+    'Empty or whitespace project name is rejected on update',
+    async () => {
+      const res = await request('PATCH', `/projects/${aiwProjectId}`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { name: '     ' },
+      });
+      assert(
+        res.status === 400,
+        `Expected 400 for whitespace project name update but got ${res.status}`,
+      );
+    },
+  );
+
+  await runTest('Edge Cases', 'Invalid UUID attendee in meeting is rejected with 400', async () => {
+    const now = new Date();
+    const res = await request('POST', `/projects/${aiwProjectId}/meetings`, {
+      cookies: aliceCookies,
+      headers: { 'x-csrf-token': aliceCsrf },
+      body: {
+        title: 'Bad Attendee Meeting',
+        startsAt: now.toISOString(),
+        endsAt: new Date(now.getTime() + 3600000).toISOString(),
+        attendeeUserIds: ['not-a-valid-uuid'],
+      },
+    });
+    assert(res.status === 400, `Expected 400 for invalid attendee UUID but got ${res.status}`);
+  });
+
+  await runTest(
+    'Edge Cases',
+    'Requirement update with stale version triggers optimistic concurrency conflict (409)',
+    async () => {
+      const res = await request('PATCH', `/projects/${aiwProjectId}/requirements/${createdReqId}`, {
+        cookies: aliceCookies,
+        headers: { 'x-csrf-token': aliceCsrf },
+        body: { version: 1, title: 'Conflicting Stale Version Edit' },
+      });
+      assert(res.status === 409, `Expected 409 Conflict for stale version but got ${res.status}`);
+    },
+  );
+
+  await runTest('Edge Cases', 'Reject corrupted binary PDF file upload with 415', async () => {
+    const boundary = '----WebKitFormBoundaryCorruptedPdf123';
+    const payload = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="file"; filename="corrupted.pdf"',
+      'Content-Type: application/pdf',
+      '',
+      'THIS_IS_NOT_A_VALID_PDF_HEADER_IT_LACKS_PERCENT_PDF',
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const res = await request('POST', `/projects/${aiwProjectId}/documents`, {
+      cookies: aliceCookies,
+      headers: {
+        'x-csrf-token': aliceCsrf,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: payload,
+    });
+    assert(res.status === 415, `Expected 415 for corrupted PDF header but got ${res.status}`);
   });
 
   await runTest('Edge Cases', 'Rapid consecutive requests test (concurrency)', async () => {

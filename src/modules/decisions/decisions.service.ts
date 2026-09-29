@@ -216,8 +216,24 @@ export class DecisionsService {
     const isAccepted = decision.status === DecisionStatus.ACCEPTED;
 
     // Apply updates
-    if (dto.title !== undefined) decision.title = dto.title.trim();
-    if (dto.decisionText !== undefined) decision.decisionText = dto.decisionText.trim();
+    if (dto.title !== undefined) {
+      if (dto.title.trim().length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Decision title cannot be empty or whitespace.',
+        });
+      }
+      decision.title = dto.title.trim();
+    }
+    if (dto.decisionText !== undefined) {
+      if (dto.decisionText.trim().length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Decision text cannot be empty or whitespace.',
+        });
+      }
+      decision.decisionText = dto.decisionText.trim();
+    }
     if (dto.rationale !== undefined) decision.rationale = dto.rationale?.trim() ?? null;
     if (dto.status !== undefined) {
       decision.status = dto.status;
@@ -348,28 +364,50 @@ export class DecisionsService {
     requirementId: string,
     projectId: string,
   ): Promise<void> {
-    const requirement = await this.requirementRepository.findOne({
-      where: { id: requirementId, projectId, deletedAt: IsNull() },
-      select: ['id'],
-    });
-    if (!requirement) {
-      throw new BadRequestException({
-        code: 'INVALID_REQUIREMENT',
-        message: 'Linked requirement not found in this project.',
+    try {
+      const requirement = await this.requirementRepository.findOne({
+        where: { id: requirementId, projectId, deletedAt: IsNull() },
+        select: ['id'],
       });
+      if (!requirement) {
+        throw new BadRequestException({
+          code: 'INVALID_REQUIREMENT',
+          message: 'Linked requirement not found in this project.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new BadRequestException({
+          code: 'INVALID_REQUIREMENT',
+          message: 'Linked requirement not found in this project.',
+        });
+      }
+      throw err;
     }
   }
 
   private async validateDecisionInProject(decisionId: string, projectId: string): Promise<void> {
-    const decision = await this.decisionRepository.findOne({
-      where: { id: decisionId, projectId, deletedAt: IsNull() },
-      select: ['id'],
-    });
-    if (!decision) {
-      throw new BadRequestException({
-        code: 'INVALID_DECISION',
-        message: 'Referenced decision not found in this project.',
+    try {
+      const decision = await this.decisionRepository.findOne({
+        where: { id: decisionId, projectId, deletedAt: IsNull() },
+        select: ['id'],
       });
+      if (!decision) {
+        throw new BadRequestException({
+          code: 'INVALID_DECISION',
+          message: 'Referenced decision not found in this project.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new BadRequestException({
+          code: 'INVALID_DECISION',
+          message: 'Referenced decision not found in this project.',
+        });
+      }
+      throw err;
     }
   }
 

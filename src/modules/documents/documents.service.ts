@@ -451,6 +451,12 @@ export class DocumentsService {
     }
 
     if (dto.title !== undefined) {
+      if (dto.title.trim().length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Document title cannot be empty or whitespace.',
+        });
+      }
       doc.title = dto.title.trim();
     }
     if (dto.description !== undefined) {

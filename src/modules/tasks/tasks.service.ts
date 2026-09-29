@@ -145,14 +145,12 @@ export class TasksService {
     const sortBy = query.sortBy ?? 'number';
     const sortOrder = query.sortOrder ?? 'DESC';
 
-    const qb: SelectQueryBuilder<Task> = this.taskRepository
-      .createQueryBuilder('task');
+    const qb: SelectQueryBuilder<Task> = this.taskRepository.createQueryBuilder('task');
     if (typeof (qb as any).leftJoinAndSelect === 'function') {
       qb.leftJoinAndSelect('task.assignee', 'assignee');
       qb.leftJoinAndSelect('task.project', 'project');
     }
-    qb.where('task.projectId = :projectId', { projectId })
-      .andWhere('task.deletedAt IS NULL');
+    qb.where('task.projectId = :projectId', { projectId }).andWhere('task.deletedAt IS NULL');
 
     if (query.status) {
       qb.andWhere('task.status = :status', { status: query.status });
@@ -207,14 +205,14 @@ export class TasksService {
 
     const projectIds = memberships.map((m) => m.projectId);
 
-    const qb: SelectQueryBuilder<Task> = this.taskRepository
-      .createQueryBuilder('task');
+    const qb: SelectQueryBuilder<Task> = this.taskRepository.createQueryBuilder('task');
     if (typeof (qb as any).leftJoinAndSelect === 'function') {
       qb.leftJoinAndSelect('task.assignee', 'assignee');
       qb.leftJoinAndSelect('task.project', 'project');
     }
-    qb.where('task.projectId IN (:...projectIds)', { projectIds })
-      .andWhere('task.deletedAt IS NULL');
+    qb.where('task.projectId IN (:...projectIds)', { projectIds }).andWhere(
+      'task.deletedAt IS NULL',
+    );
 
     if (query.status) {
       qb.andWhere('task.status = :status', { status: query.status });
@@ -284,7 +282,15 @@ export class TasksService {
     const previousAssigneeId = task.assigneeId;
     const previousStatus = task.status;
 
-    if (dto.title !== undefined) task.title = dto.title.trim();
+    if (dto.title !== undefined) {
+      if (dto.title.trim().length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Task title cannot be empty or whitespace.',
+        });
+      }
+      task.title = dto.title.trim();
+    }
     if (dto.description !== undefined) {
       task.description = dto.description ? dto.description.trim() : null;
     }
@@ -416,14 +422,25 @@ export class TasksService {
   }
 
   private async validateAssigneeInProject(userId: string, projectId: string): Promise<void> {
-    const membership = await this.memberRepository.findOne({
-      where: { projectId, userId, removedAt: IsNull() },
-    });
-    if (!membership) {
-      throw new BadRequestException({
-        code: 'INVALID_ASSIGNEE',
-        message: 'Assignee must be an active member of this project.',
+    try {
+      const membership = await this.memberRepository.findOne({
+        where: { projectId, userId, removedAt: IsNull() },
       });
+      if (!membership) {
+        throw new BadRequestException({
+          code: 'INVALID_ASSIGNEE',
+          message: 'Assignee must be an active member of this project.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new BadRequestException({
+          code: 'INVALID_ASSIGNEE',
+          message: 'Assignee must be an active member of this project.',
+        });
+      }
+      throw err;
     }
   }
 
@@ -431,28 +448,50 @@ export class TasksService {
     requirementId: string,
     projectId: string,
   ): Promise<void> {
-    const requirement = await this.requirementRepository.findOne({
-      where: { id: requirementId, projectId, deletedAt: IsNull() },
-      select: ['id'],
-    });
-    if (!requirement) {
-      throw new BadRequestException({
-        code: 'INVALID_REQUIREMENT',
-        message: 'Linked requirement not found in this project.',
+    try {
+      const requirement = await this.requirementRepository.findOne({
+        where: { id: requirementId, projectId, deletedAt: IsNull() },
+        select: ['id'],
       });
+      if (!requirement) {
+        throw new BadRequestException({
+          code: 'INVALID_REQUIREMENT',
+          message: 'Linked requirement not found in this project.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new BadRequestException({
+          code: 'INVALID_REQUIREMENT',
+          message: 'Linked requirement not found in this project.',
+        });
+      }
+      throw err;
     }
   }
 
   private async validateMeetingInProject(meetingId: string, projectId: string): Promise<void> {
-    const meeting = await this.meetingRepository.findOne({
-      where: { id: meetingId, projectId, deletedAt: IsNull() },
-      select: ['id'],
-    });
-    if (!meeting) {
-      throw new BadRequestException({
-        code: 'INVALID_MEETING',
-        message: 'Linked meeting not found in this project.',
+    try {
+      const meeting = await this.meetingRepository.findOne({
+        where: { id: meetingId, projectId, deletedAt: IsNull() },
+        select: ['id'],
       });
+      if (!meeting) {
+        throw new BadRequestException({
+          code: 'INVALID_MEETING',
+          message: 'Linked meeting not found in this project.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new BadRequestException({
+          code: 'INVALID_MEETING',
+          message: 'Linked meeting not found in this project.',
+        });
+      }
+      throw err;
     }
   }
 }

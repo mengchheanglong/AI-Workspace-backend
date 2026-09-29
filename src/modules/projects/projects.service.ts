@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { Project, ProjectStatus } from './entities/project.entity';
@@ -74,6 +79,13 @@ export class ProjectsService {
     dto: CreateProjectDto,
     requestId?: string,
   ): Promise<{ project: Project; accessRole: ProjectRole }> {
+    if (!dto.name || dto.name.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Project name cannot be empty or whitespace.',
+      });
+    }
+
     const key = dto.key.trim().toUpperCase();
 
     const existing = await this.projectRepository.findOne({ where: { key } });
@@ -149,6 +161,12 @@ export class ProjectsService {
     }
 
     if (dto.name !== undefined) {
+      if (dto.name.trim().length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Project name cannot be empty or whitespace.',
+        });
+      }
       project.name = dto.name.trim();
     }
     if (dto.description !== undefined) {

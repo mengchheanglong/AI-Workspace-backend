@@ -51,6 +51,13 @@ export class MeetingsService {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
 
+    if (!dto.title || dto.title.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Meeting title cannot be empty or whitespace.',
+      });
+    }
+
     if (endsAt <= startsAt) {
       throw new BadRequestException({
         code: 'INVALID_MEETING_TIME',
@@ -206,7 +213,15 @@ export class MeetingsService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      if (dto.title !== undefined) meeting.title = dto.title.trim();
+      if (dto.title !== undefined) {
+        if (dto.title.trim().length === 0) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'Meeting title cannot be empty or whitespace.',
+          });
+        }
+        meeting.title = dto.title.trim();
+      }
       if (dto.startsAt !== undefined) meeting.startsAt = nextStartsAt;
       if (dto.endsAt !== undefined) meeting.endsAt = nextEndsAt;
       if (dto.agenda !== undefined) meeting.agenda = dto.agenda ? dto.agenda.trim() : null;
@@ -318,19 +333,30 @@ export class MeetingsService {
 
   private async validateAttendeesInProject(userIds: string[], projectId: string): Promise<void> {
     const uniqueIds = Array.from(new Set(userIds));
-    const activeMembers = await this.memberRepository.find({
-      where: {
-        projectId,
-        userId: In(uniqueIds),
-        removedAt: IsNull(),
-      },
-    });
-
-    if (activeMembers.length !== uniqueIds.length) {
-      throw new BadRequestException({
-        code: 'INVALID_ATTENDEE',
-        message: 'All meeting attendees must be active members of this project.',
+    try {
+      const activeMembers = await this.memberRepository.find({
+        where: {
+          projectId,
+          userId: In(uniqueIds),
+          removedAt: IsNull(),
+        },
       });
+
+      if (activeMembers.length !== uniqueIds.length) {
+        throw new BadRequestException({
+          code: 'INVALID_ATTENDEE',
+          message: 'All meeting attendees must be active members of this project.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new BadRequestException({
+          code: 'INVALID_ATTENDEE',
+          message: 'All meeting attendees must be active members of this project.',
+        });
+      }
+      throw err;
     }
   }
 }

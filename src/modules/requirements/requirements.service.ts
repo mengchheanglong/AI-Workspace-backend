@@ -132,15 +132,16 @@ export class RequirementsService {
     const sortBy = query.sortBy ?? 'number';
     const sortOrder = query.sortOrder ?? 'DESC';
 
-    const qb: SelectQueryBuilder<Requirement> = this.requirementRepository
-      .createQueryBuilder('requirement');
+    const qb: SelectQueryBuilder<Requirement> =
+      this.requirementRepository.createQueryBuilder('requirement');
     if (typeof (qb as any).leftJoinAndSelect === 'function') {
       qb.leftJoinAndSelect('requirement.project', 'project');
       qb.leftJoinAndSelect('requirement.updater', 'updater');
       qb.leftJoinAndSelect('requirement.creator', 'creator');
     }
-    qb.where('requirement.projectId = :projectId', { projectId })
-      .andWhere('requirement.deletedAt IS NULL');
+    qb.where('requirement.projectId = :projectId', { projectId }).andWhere(
+      'requirement.deletedAt IS NULL',
+    );
 
     if (query.status) {
       qb.andWhere('requirement.status = :status', { status: query.status });
@@ -244,7 +245,15 @@ export class RequirementsService {
     }
 
     // Apply updates
-    if (dto.title !== undefined) requirement.title = dto.title.trim();
+    if (dto.title !== undefined) {
+      if (dto.title.trim().length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Requirement title cannot be empty or whitespace.',
+        });
+      }
+      requirement.title = dto.title.trim();
+    }
     if (dto.description !== undefined) requirement.description = dto.description.trim();
     if (dto.acceptanceCriteria !== undefined) {
       requirement.acceptanceCriteria = dto.acceptanceCriteria.trim();
