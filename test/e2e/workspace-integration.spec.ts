@@ -870,6 +870,7 @@ describe('Workspace Integration API - Dashboard & Search (E2E)', () => {
         IN_REVIEW: 0,
         DONE: 2,
         CANCELLED: 1,
+        BLOCKED: 0,
       });
 
       // Overdue tasks: only task 3 (status TODO, dueDate 2020-01-01)
@@ -881,6 +882,7 @@ describe('Workspace Integration API - Dashboard & Search (E2E)', () => {
       // Requirement counts
       expect(dashboard.requirementCountsByStatus).toEqual({
         DRAFT: 0,
+        IN_REVIEW: 0,
         APPROVED: 1,
         IN_PROGRESS: 1,
         DONE: 0,

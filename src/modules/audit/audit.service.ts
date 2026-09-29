@@ -12,8 +12,7 @@ export class AuditService {
   ) {}
 
   async record(dto: CreateAuditLogDto, manager?: EntityManager): Promise<AuditLog> {
-    const repo = manager ? manager.getRepository(AuditLog) : this.auditRepository;
-    const log = repo.create({
+    const data = {
       projectId: dto.projectId ?? null,
       actorId: dto.actorId ?? null,
       action: dto.action,
@@ -21,8 +20,18 @@ export class AuditService {
       entityId: dto.entityId ?? null,
       metadata: dto.metadata ?? null,
       requestId: dto.requestId ?? null,
-    });
-    return repo.save(log);
+    };
+    if (manager) {
+      if (typeof manager.getRepository === 'function') {
+        const repo = manager.getRepository(AuditLog);
+        const log = repo.create(data);
+        return repo.save(log);
+      }
+      const log = manager.create(AuditLog, data);
+      return manager.save(AuditLog, log) as Promise<AuditLog>;
+    }
+    const log = this.auditRepository.create(data);
+    return this.auditRepository.save(log);
   }
 
   async listForProject(

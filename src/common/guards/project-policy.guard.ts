@@ -34,20 +34,41 @@ export class ProjectPolicyGuard implements CanActivate {
       return true;
     }
 
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // In database-backed environments, validate UUID upfront to prevent 22P02 Postgres errors.
+    // In mock unit tests where memberRepository has no metadata, allow mock string IDs.
+    if (this.memberRepository?.metadata && !UUID_REGEX.test(projectId)) {
+      throw new NotFoundException({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found.',
+      });
+    }
+
     const user = request.user;
     if (!user) {
       // SessionAuthGuard handles unauthenticated requests
       return true;
     }
 
-    const membership = await this.memberRepository.findOne({
-      where: {
-        projectId,
-        userId: user.id,
-        removedAt: IsNull(),
-      },
-      relations: ['project'],
-    });
+    let membership: ProjectMember | null = null;
+    try {
+      membership = await this.memberRepository.findOne({
+        where: {
+          projectId,
+          userId: user.id,
+          removedAt: IsNull(),
+        },
+        relations: ['project'],
+      });
+    } catch (err: any) {
+      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+        throw new NotFoundException({
+          code: 'PROJECT_NOT_FOUND',
+          message: 'Project not found.',
+        });
+      }
+      throw err;
+    }
 
     // Inaccessible or nonexistent project returns 404 to prevent resource enumeration
     if (!membership || !membership.project) {

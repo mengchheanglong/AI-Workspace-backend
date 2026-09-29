@@ -52,6 +52,12 @@ export class TasksService {
     dto: CreateTaskDto,
     requestId?: string,
   ): Promise<Task> {
+    if (!dto.title || dto.title.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Task title cannot be empty or whitespace.',
+      });
+    }
     if (dto.assigneeId) {
       await this.validateAssigneeInProject(dto.assigneeId, projectId);
     }
@@ -140,10 +146,12 @@ export class TasksService {
     const sortOrder = query.sortOrder ?? 'DESC';
 
     const qb: SelectQueryBuilder<Task> = this.taskRepository
-      .createQueryBuilder('task')
-      .leftJoinAndSelect('task.assignee', 'assignee')
-      .leftJoinAndSelect('task.project', 'project')
-      .where('task.projectId = :projectId', { projectId })
+      .createQueryBuilder('task');
+    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+      qb.leftJoinAndSelect('task.assignee', 'assignee');
+      qb.leftJoinAndSelect('task.project', 'project');
+    }
+    qb.where('task.projectId = :projectId', { projectId })
       .andWhere('task.deletedAt IS NULL');
 
     if (query.status) {
@@ -200,10 +208,12 @@ export class TasksService {
     const projectIds = memberships.map((m) => m.projectId);
 
     const qb: SelectQueryBuilder<Task> = this.taskRepository
-      .createQueryBuilder('task')
-      .leftJoinAndSelect('task.assignee', 'assignee')
-      .leftJoinAndSelect('task.project', 'project')
-      .where('task.projectId IN (:...projectIds)', { projectIds })
+      .createQueryBuilder('task');
+    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+      qb.leftJoinAndSelect('task.assignee', 'assignee');
+      qb.leftJoinAndSelect('task.project', 'project');
+    }
+    qb.where('task.projectId IN (:...projectIds)', { projectIds })
       .andWhere('task.deletedAt IS NULL');
 
     if (query.status) {

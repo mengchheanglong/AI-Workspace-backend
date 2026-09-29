@@ -52,6 +52,18 @@ export class DecisionsService {
     dto: CreateDecisionDto,
     requestId?: string,
   ): Promise<Decision> {
+    if (!dto.title || dto.title.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Decision title cannot be empty or whitespace.',
+      });
+    }
+    if (!dto.decisionText || dto.decisionText.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Decision text cannot be empty or whitespace.',
+      });
+    }
     // Validate same-project cross-references
     if (dto.requirementId) {
       await this.validateRequirementInProject(dto.requirementId, projectId);

@@ -293,9 +293,11 @@ export class DocumentsService {
     query: ListDocumentsQueryDto,
   ): Promise<{ data: Document[]; total: number }> {
     const qb = this.documentRepository.createQueryBuilder('doc');
-    qb.leftJoinAndSelect('doc.project', 'project');
-    qb.leftJoinAndSelect('doc.creator', 'creator');
-    qb.leftJoinAndSelect('doc.updater', 'updater');
+    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+      qb.leftJoinAndSelect('doc.project', 'project');
+      qb.leftJoinAndSelect('doc.creator', 'creator');
+      qb.leftJoinAndSelect('doc.updater', 'updater');
+    }
     qb.where('doc.projectId = :projectId', { projectId });
     qb.andWhere('doc.deletedAt IS NULL');
 

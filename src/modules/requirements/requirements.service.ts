@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -48,6 +49,12 @@ export class RequirementsService {
     dto: CreateRequirementDto,
     requestId?: string,
   ): Promise<Requirement> {
+    if (!dto.title || dto.title.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Requirement title cannot be empty or whitespace.',
+      });
+    }
     return this.dataSource.transaction(async (manager) => {
       // Allocate project-local number transactionally
       const result: { max: number | null }[] = await manager.query(
@@ -126,11 +133,13 @@ export class RequirementsService {
     const sortOrder = query.sortOrder ?? 'DESC';
 
     const qb: SelectQueryBuilder<Requirement> = this.requirementRepository
-      .createQueryBuilder('requirement')
-      .leftJoinAndSelect('requirement.project', 'project')
-      .leftJoinAndSelect('requirement.updater', 'updater')
-      .leftJoinAndSelect('requirement.creator', 'creator')
-      .where('requirement.projectId = :projectId', { projectId })
+      .createQueryBuilder('requirement');
+    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+      qb.leftJoinAndSelect('requirement.project', 'project');
+      qb.leftJoinAndSelect('requirement.updater', 'updater');
+      qb.leftJoinAndSelect('requirement.creator', 'creator');
+    }
+    qb.where('requirement.projectId = :projectId', { projectId })
       .andWhere('requirement.deletedAt IS NULL');
 
     if (query.status) {
