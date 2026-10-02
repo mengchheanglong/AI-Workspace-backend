@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Patch,
   Post,
   Req,
@@ -25,6 +26,7 @@ import { SessionService } from './services/session.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { SessionAuthGuard } from '../../common/guards/session-auth.guard';
 import { CsrfGuard } from '../../common/guards/csrf.guard';
@@ -63,6 +65,39 @@ export class AuthController {
   @ApiOkResponse({ description: 'Registration successful, returns profile and CSRF token' })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) response: Response) {
     const { user, rawToken, rawCsrfToken } = await this.authService.register(dto);
+
+    const cookieName = this.sessionService.getCookieName();
+    const cookieOptions = this.sessionService.getCookieOptions();
+
+    response.cookie(cookieName, rawToken, cookieOptions);
+
+    return {
+      data: {
+        user: UserResponseDto.fromEntity(user),
+        csrfToken: rawCsrfToken,
+      },
+    };
+  }
+
+  @Public()
+  @Get('invite/:token')
+  @ApiOperation({ summary: 'Get invitation preview details' })
+  @ApiOkResponse({ description: 'Invite preview returned' })
+  async getInvitePreview(@Param('token') token: string) {
+    const preview = await this.authService.getInvitePreview(token);
+    return { data: preview };
+  }
+
+  @Public()
+  @Post('accept-invite')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Accept invitation, create account, and obtain session cookie' })
+  @ApiOkResponse({ description: 'Invitation accepted and logged in' })
+  async acceptInvite(
+    @Body() dto: AcceptInvitationDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { user, rawToken, rawCsrfToken } = await this.authService.acceptInvite(dto);
 
     const cookieName = this.sessionService.getCookieName();
     const cookieOptions = this.sessionService.getCookieOptions();
