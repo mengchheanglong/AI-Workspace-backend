@@ -12,6 +12,10 @@ import { MockEmbeddingProvider } from '../../src/modules/ingestion/embedding/moc
 import { EntityExtractor } from '../../src/modules/ingestion/extractors/entity-extractor';
 import { OutboxService } from '../../src/modules/ingestion/outbox.service';
 import { LocalStorageService } from '../../src/modules/storage/local-storage.service';
+import { readFile } from 'node:fs/promises';
+import { Document, ProcessingStatus } from '../../src/modules/documents/entities/document.entity';
+
+jest.mock('node:fs/promises', () => ({ readFile: jest.fn() }));
 
 describe('IngestionService', () => {
   let service: IngestionService;
@@ -46,9 +50,11 @@ describe('IngestionService', () => {
   };
   let dataSource: {
     transaction: jest.Mock;
+    manager: { update: jest.Mock; findOne: jest.Mock };
   };
 
   beforeEach(() => {
+    jest.mocked(readFile).mockReset().mockResolvedValue(Buffer.from('Workspace requirements.'));
     sourceRepo = {
       findOne: jest.fn(),
       create: jest.fn((dto) => ({ ...dto, id: 'source-uuid-1' })),
@@ -97,6 +103,10 @@ describe('IngestionService', () => {
     };
 
     dataSource = {
+      manager: {
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        findOne: jest.fn().mockResolvedValue(null),
+      },
       transaction: jest.fn(async (cb) => {
         const tx = {
           findOne: jest.fn(async () =>
@@ -135,6 +145,126 @@ describe('IngestionService', () => {
   it('should initialize and register event handler on onModuleInit', () => {
     service.onModuleInit();
     expect(outboxService.setEventHandler).toHaveBeenCalled();
+  });
+
+  describe('document processing status', () => {
+    const payload = {
+      documentId: 'doc-1',
+      revision: 1,
+      title: 'SRS',
+      storageKey: 'project/doc.txt',
+      mimeType: 'text/plain',
+      originalFilename: 'srs.txt',
+    };
+
+    it('loads the current file for manual reindex jobs before marking completion', async () => {
+      dataSource.manager.findOne.mockResolvedValue(payload);
+      sourceRepo.findOne.mockResolvedValue(null);
+      await service.syncDocument('proj-1', { documentId: 'doc-1', revision: 1, title: 'SRS' });
+      expect(dataSource.manager.findOne).toHaveBeenCalledWith(
+        Document,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'doc-1',
+            projectId: 'proj-1',
+            revision: 1,
+            deletedAt: expect.anything(),
+          }),
+        }),
+      );
+      expect(dataSource.manager.update).toHaveBeenCalledWith(Document, expect.anything(), {
+        processingStatus: ProcessingStatus.COMPLETED,
+        lastErrorCode: null,
+      });
+    });
+
+    it('skips manual reindex work for a deleted or superseded revision', async () => {
+      await expect(
+        service.syncDocument('proj-1', { documentId: 'doc-1', revision: 1, title: 'SRS' }),
+      ).resolves.toBeNull();
+      expect(dataSource.manager.update).not.toHaveBeenCalled();
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('marks the current document completed only after its index is activated', async () => {
+      sourceRepo.findOne.mockResolvedValue(null);
+      await service.syncDocument('proj-1', payload);
+      expect(dataSource.transaction).toHaveBeenCalled();
+      expect(dataSource.manager.update).toHaveBeenCalledWith(
+        Document,
+        expect.objectContaining({
+          id: 'doc-1',
+          projectId: 'proj-1',
+          revision: 1,
+          deletedAt: expect.anything(),
+        }),
+        { processingStatus: ProcessingStatus.COMPLETED, lastErrorCode: null },
+      );
+    });
+
+    it('does not overwrite a replacement revision when older indexing finishes late', async () => {
+      const replacement = { revision: 2, processingStatus: ProcessingStatus.PENDING };
+      dataSource.manager.update.mockImplementation(async (_entity, criteria, patch) => {
+        if (criteria.revision === replacement.revision) Object.assign(replacement, patch);
+        return { affected: criteria.revision === replacement.revision ? 1 : 0 };
+      });
+      sourceRepo.findOne.mockResolvedValue(null);
+      await service.syncDocument('proj-1', payload);
+      expect(replacement.processingStatus).toBe(ProcessingStatus.PENDING);
+    });
+
+    it('does not mark a skipped older source as completed', async () => {
+      sourceRepo.findOne.mockResolvedValue({
+        sourceRevision: 3,
+        status: KnowledgeSourceStatus.INDEXED,
+      });
+      await service.syncDocument('proj-1', payload);
+      expect(dataSource.manager.update).not.toHaveBeenCalled();
+    });
+
+    it('marks read failures and propagates them so the outbox can retry', async () => {
+      jest.mocked(readFile).mockRejectedValue(new Error('unreadable file'));
+      await expect(service.syncDocument('proj-1', payload)).rejects.toThrow('unreadable file');
+      expect(dataSource.manager.update).toHaveBeenCalledWith(
+        Document,
+        expect.objectContaining({ projectId: 'proj-1', revision: 1 }),
+        { processingStatus: ProcessingStatus.FAILED, lastErrorCode: 'DOCUMENT_READ_FAILED' },
+      );
+    });
+
+    it('marks embedding failures and propagates them so the outbox can retry', async () => {
+      sourceRepo.findOne.mockResolvedValue(null);
+      jest
+        .spyOn(service.getEmbeddingProvider(), 'embed')
+        .mockRejectedValue(new Error('embedding unavailable'));
+      await expect(service.syncDocument('proj-1', payload)).rejects.toThrow(
+        'embedding unavailable',
+      );
+      expect(dataSource.manager.update).toHaveBeenCalledWith(
+        Document,
+        expect.objectContaining({ projectId: 'proj-1', revision: 1 }),
+        { processingStatus: ProcessingStatus.FAILED, lastErrorCode: 'DOCUMENT_INDEXING_FAILED' },
+      );
+    });
+
+    it.each([
+      ['unsupported format', 'image/png', 'srs.png', 'content', 'DOCUMENT_FORMAT_UNSUPPORTED'],
+      ['no extractable text', 'text/plain', 'srs.txt', '   ', 'DOCUMENT_TEXT_EMPTY'],
+    ])(
+      'does not report %s as indexed',
+      async (_name, mimeType, originalFilename, content, code) => {
+        jest.mocked(readFile).mockResolvedValue(Buffer.from(content));
+        await expect(
+          service.syncDocument('proj-1', { ...payload, mimeType, originalFilename }),
+        ).resolves.toBeNull();
+        expect(dataSource.manager.update).toHaveBeenCalledWith(
+          Document,
+          expect.objectContaining({ projectId: 'proj-1', revision: 1 }),
+          { processingStatus: ProcessingStatus.UNSUPPORTED, lastErrorCode: code },
+        );
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it('should index a requirement and activate chunks atomically', async () => {

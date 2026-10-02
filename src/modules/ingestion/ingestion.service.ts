@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
 import { STORAGE_DRIVER, StorageDriver } from '../storage/storage.interface';
+import { Document, ProcessingStatus } from '../documents/entities/document.entity';
 import { SemanticChunker } from './chunker/semantic-chunker';
 import { ListKnowledgeSourcesDto } from './dto/list-sources.dto';
 import { EmbeddingProvider, MockEmbeddingProvider, OpenAiEmbeddingProvider } from './embedding';
@@ -253,9 +254,33 @@ export class IngestionService implements OnModuleInit {
   }
 
   async syncDocument(projectId: string, payload: DocumentPayload): Promise<KnowledgeSource | null> {
+    // Manual reindex jobs carry the source identity, not storage credentials.
+    if (!payload.storageKey || !payload.mimeType) {
+      const document = await this.dataSource.manager.findOne(Document, {
+        where: {
+          id: payload.documentId,
+          projectId,
+          revision: payload.revision ?? 1,
+          deletedAt: IsNull(),
+        },
+      });
+      if (!document) return null;
+      payload = {
+        ...payload,
+        storageKey: document.storageKey,
+        mimeType: document.mimeType,
+        originalFilename: document.originalFilename,
+      };
+    }
     if (!payload.storageKey || !payload.mimeType) {
       this.logger.warn(`Missing storageKey or mimeType for document ${payload.documentId}`);
-      return null;
+      await this.updateDocumentProcessingStatus(
+        projectId,
+        payload,
+        ProcessingStatus.FAILED,
+        'DOCUMENT_METADATA_MISSING',
+      );
+      throw new Error('DOCUMENT_METADATA_MISSING');
     }
 
     let buffer: Buffer;
@@ -265,7 +290,13 @@ export class IngestionService implements OnModuleInit {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to read document file for ${payload.documentId}: ${message}`);
-      return null;
+      await this.updateDocumentProcessingStatus(
+        projectId,
+        payload,
+        ProcessingStatus.FAILED,
+        'DOCUMENT_READ_FAILED',
+      );
+      throw err;
     }
 
     let extractedDoc: ExtractedDocument;
@@ -292,22 +323,82 @@ export class IngestionService implements OnModuleInit {
         this.logger.warn(
           `Unsupported mimeType ${payload.mimeType} for document ${payload.documentId}`,
         );
+        await this.updateDocumentProcessingStatus(
+          projectId,
+          payload,
+          ProcessingStatus.UNSUPPORTED,
+          'DOCUMENT_FORMAT_UNSUPPORTED',
+        );
         return null;
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to extract text from document ${payload.documentId}: ${message}`);
+      await this.updateDocumentProcessingStatus(
+        projectId,
+        payload,
+        ProcessingStatus.FAILED,
+        'DOCUMENT_EXTRACTION_FAILED',
+      );
+      throw err;
+    }
+
+    if (!extractedDoc.text.trim()) {
+      await this.updateDocumentProcessingStatus(
+        projectId,
+        payload,
+        ProcessingStatus.UNSUPPORTED,
+        'DOCUMENT_TEXT_EMPTY',
+      );
       return null;
     }
 
-    return this.processKnowledgeSource({
-      projectId,
-      sourceType: KnowledgeSourceType.DOCUMENT,
-      sourceId: payload.documentId,
-      sourceRevision: payload.revision ?? 1,
-      title: payload.title,
-      extractedDoc,
-    });
+    let source: KnowledgeSource | null;
+    try {
+      source = await this.processKnowledgeSource({
+        projectId,
+        sourceType: KnowledgeSourceType.DOCUMENT,
+        sourceId: payload.documentId,
+        sourceRevision: payload.revision ?? 1,
+        title: payload.title,
+        extractedDoc,
+      });
+    } catch (err: unknown) {
+      await this.updateDocumentProcessingStatus(
+        projectId,
+        payload,
+        ProcessingStatus.FAILED,
+        'DOCUMENT_INDEXING_FAILED',
+      );
+      throw err;
+    }
+
+    if (
+      source?.status === KnowledgeSourceStatus.INDEXED &&
+      source.sourceRevision === (payload.revision ?? 1)
+    ) {
+      await this.updateDocumentProcessingStatus(projectId, payload, ProcessingStatus.COMPLETED);
+    }
+    return source;
+  }
+
+  private async updateDocumentProcessingStatus(
+    projectId: string,
+    payload: DocumentPayload,
+    processingStatus: ProcessingStatus,
+    lastErrorCode: string | null = null,
+  ): Promise<void> {
+    // Late work for an older revision must not overwrite a replacement or deleted file.
+    await this.dataSource.manager.update(
+      Document,
+      {
+        id: payload.documentId,
+        projectId,
+        revision: payload.revision ?? 1,
+        deletedAt: IsNull(),
+      },
+      { processingStatus, lastErrorCode },
+    );
   }
 
   async syncRequirement(
