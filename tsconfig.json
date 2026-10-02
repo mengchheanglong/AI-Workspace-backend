@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "moduleResolution": "node",
     "target": "ES2023",
     "lib": ["ES2023"],
     "experimentalDecorators": true,
