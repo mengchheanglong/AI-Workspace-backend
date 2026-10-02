@@ -256,6 +256,46 @@
         ]
       }
     },
+    "/api/v1/auth/profile": {
+      "patch": {
+        "operationId": "AuthController_updateProfile",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "description": "CSRF token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Update profile for current authenticated user",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/users": {
       "get": {
         "operationId": "UsersController_findAll",
@@ -1368,6 +1408,15 @@
             }
           },
           {
+            "name": "number",
+            "required": false,
+            "in": "query",
+            "description": "Filter by decision number (e.g. 1 for AIW-DEC-1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
             "name": "search",
             "required": false,
             "in": "query",
@@ -1696,6 +1745,15 @@
                 "CANCELLED",
                 "BLOCKED"
               ]
+            }
+          },
+          {
+            "name": "number",
+            "required": false,
+            "in": "query",
+            "description": "Filter by task number (e.g. 38 for AIW-TSK-38)",
+            "schema": {
+              "type": "number"
             }
           },
           {
@@ -3632,6 +3690,26 @@
           "currentPassword",
           "newPassword"
         ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "example": "Alice Developer"
+          },
+          "professionalRole": {
+            "type": "string",
+            "enum": [
+              "PM",
+              "DEVELOPER",
+              "QA",
+              "DX",
+              "INFRASTRUCTURE",
+              "PRESENTATION"
+            ]
+          }
+        }
       },
       "CreateUserDto": {
         "type": "object",
