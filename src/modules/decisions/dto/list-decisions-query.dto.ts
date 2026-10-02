@@ -9,6 +9,15 @@ export class ListDecisionsQueryDto {
   @IsEnum(DecisionStatus)
   status?: DecisionStatus;
 
+  @ApiPropertyOptional({ description: 'Filter by decision number (e.g. 1 for AIW-DEC-1)' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value !== undefined && value !== '' ? parseInt(value as string, 10) : undefined,
+  )
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @ApiPropertyOptional({ example: 'postgresql', maxLength: 200 })
   @IsOptional()
   @IsString()

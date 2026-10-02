@@ -158,6 +158,97 @@ Generate clear task breakdown for this requirement.`;
     return saved;
   }
 
+  async generateDecisionTaskProposal(
+    projectId: string,
+    userId: string,
+    decisionId: string,
+  ): Promise<AIProposal> {
+    const decision = await this.decisionRepository.findOne({
+      where: { id: decisionId, projectId, deletedAt: IsNull() },
+    });
+
+    if (!decision) {
+      throw new NotFoundException({
+        code: 'DECISION_NOT_FOUND',
+        message: 'Decision not found in project.',
+      });
+    }
+
+    const systemPrompt = `You are a Principal Software Architect and Project Manager. Break down the user's architectural decision into 2 to 4 actionable, specific implementation development tasks.
+Respond with a JSON object matching this structure:
+{
+  "type": "CREATE_TASKS",
+  "items": [
+    {
+      "itemId": "draft-item-1",
+      "title": "Task title",
+      "description": "Task description explaining how this implements the architectural decision",
+      "priority": "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+      "assigneeId": null,
+      "dueDate": null,
+      "sourceIds": ["${decision.id}"]
+    }
+  ]
+}`;
+
+    const userPrompt = `Architectural Decision: ${decision.title}
+Key: ADR-${decision.number}
+Status: ${decision.status}
+Decision Text: ${decision.decisionText}
+Rationale: ${decision.rationale || 'N/A'}
+Revision: ${decision.version}
+
+Generate clear development task breakdown implementing this architectural decision.`;
+
+    const result = await this.llmProvider.generateStructuredOutput<TaskProposalPayload>({
+      systemPrompt,
+      userPrompt,
+      schemaDescription:
+        'JSON object with "type": "CREATE_TASKS" and "items" array of tasks with itemId, title, description, priority, assigneeId, dueDate, sourceIds',
+    });
+
+    const parsedPayload = TaskProposalPayloadSchema.parse(result.data);
+
+    // Ensure sourceIds contains the decision id
+    parsedPayload.items = parsedPayload.items.map((item) => ({
+      ...item,
+      sourceIds: [decision.id],
+    }));
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const proposal = this.proposalRepository.create({
+      projectId,
+      userId,
+      proposalType: ProposalType.TASK_PROPOSAL,
+      sourceEntityType: 'DECISION',
+      sourceEntityId: decision.id,
+      sourceRevision: decision.version,
+      draftJson: parsedPayload,
+      version: 1,
+      status: ProposalStatus.PENDING,
+      expiresAt,
+      resultRecordIds: [],
+    });
+
+    const saved = await this.proposalRepository.save(proposal);
+
+    await this.auditService.record({
+      projectId,
+      actorId: userId,
+      action: 'AI_TASK_PROPOSAL_GENERATED',
+      entityType: 'AI_PROPOSAL',
+      entityId: saved.id,
+      metadata: {
+        decisionId: decision.id,
+        revision: decision.version,
+        itemCount: parsedPayload.items.length,
+      },
+    });
+
+    return saved;
+  }
+
   async generateMeetingAnalysis(
     projectId: string,
     userId: string,
@@ -505,22 +596,58 @@ ${meetingContent}`;
 
       // 3. Stale source check & Domain creation
       if (proposal.proposalType === ProposalType.TASK_PROPOSAL) {
-        const requirement = await manager.findOne(Requirement, {
-          where: { id: proposal.sourceEntityId, projectId, deletedAt: IsNull() },
-        });
+        let sourceRequirementId: string | null;
+        let sourceMetadata: Record<string, unknown> = { proposalId: proposal.id };
 
-        if (!requirement) {
-          throw new BadRequestException({
-            code: 'SOURCE_REQUIREMENT_MISSING',
-            message: 'Source requirement no longer exists.',
+        if (proposal.sourceEntityType === 'DECISION') {
+          const decision = await manager.findOne(Decision, {
+            where: { id: proposal.sourceEntityId, projectId, deletedAt: IsNull() },
           });
-        }
 
-        if (requirement.version !== proposal.sourceRevision) {
-          throw new ConflictException({
-            code: 'STALE_PROPOSAL',
-            message: `Source requirement has been updated to revision ${requirement.version} (proposal based on revision ${proposal.sourceRevision}). Please regenerate tasks.`,
+          if (!decision) {
+            throw new BadRequestException({
+              code: 'SOURCE_DECISION_MISSING',
+              message: 'Source architectural decision no longer exists.',
+            });
+          }
+
+          if (decision.version !== proposal.sourceRevision) {
+            throw new ConflictException({
+              code: 'STALE_PROPOSAL',
+              message: `Source decision has been updated to revision ${decision.version} (proposal based on revision ${proposal.sourceRevision}). Please regenerate tasks.`,
+            });
+          }
+
+          sourceRequirementId = decision.requirementId || null;
+          sourceMetadata = {
+            ...sourceMetadata,
+            decisionId: decision.id,
+            decisionKey: `${project.key}-DEC-${decision.number}`,
+          };
+        } else {
+          const requirement = await manager.findOne(Requirement, {
+            where: { id: proposal.sourceEntityId, projectId, deletedAt: IsNull() },
           });
+
+          if (!requirement) {
+            throw new BadRequestException({
+              code: 'SOURCE_REQUIREMENT_MISSING',
+              message: 'Source requirement no longer exists.',
+            });
+          }
+
+          if (requirement.version !== proposal.sourceRevision) {
+            throw new ConflictException({
+              code: 'STALE_PROPOSAL',
+              message: `Source requirement has been updated to revision ${requirement.version} (proposal based on revision ${proposal.sourceRevision}). Please regenerate tasks.`,
+            });
+          }
+
+          sourceRequirementId = requirement.id;
+          sourceMetadata = {
+            ...sourceMetadata,
+            requirementId: requirement.id,
+          };
         }
 
         const draft = TaskProposalPayloadSchema.parse(proposal.draftJson);
@@ -562,7 +689,7 @@ ${meetingContent}`;
             priority: item.priority ?? Priority.MEDIUM,
             assigneeId,
             dueDate: item.dueDate ? item.dueDate : null,
-            requirementId: requirement.id,
+            requirementId: sourceRequirementId,
             sourceMeetingId: null,
             createdBy: actor.id,
             updatedBy: actor.id,
@@ -593,7 +720,7 @@ ${meetingContent}`;
             action: 'TASK_CREATED_FROM_AI_PROPOSAL',
             entityType: 'TASK',
             entityId: savedTask.id,
-            metadata: { proposalId: proposal.id, requirementId: requirement.id, key: taskKey },
+            metadata: { ...sourceMetadata, key: taskKey },
           });
 
           resultRecordIds.push({ entityType: 'TASK', id: savedTask.id, key: taskKey });

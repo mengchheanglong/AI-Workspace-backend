@@ -152,6 +152,9 @@ export class TasksService {
     }
     qb.where('task.projectId = :projectId', { projectId }).andWhere('task.deletedAt IS NULL');
 
+    if (query.number !== undefined) {
+      qb.andWhere('task.number = :number', { number: query.number });
+    }
     if (query.status) {
       qb.andWhere('task.status = :status', { status: query.status });
     }
@@ -214,6 +217,9 @@ export class TasksService {
       'task.deletedAt IS NULL',
     );
 
+    if (query.number !== undefined) {
+      qb.andWhere('task.number = :number', { number: query.number });
+    }
     if (query.status) {
       qb.andWhere('task.status = :status', { status: query.status });
     }

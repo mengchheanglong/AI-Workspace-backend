@@ -49,7 +49,7 @@ import { RetrievalService } from './retrieval/retrieval.service';
         const apiKey = configService.get<string>('DEEPSEEK_API_KEY');
         const baseUrl =
           configService.get<string>('DEEPSEEK_BASE_URL') || 'https://api.deepseek.com';
-        const model = configService.get<string>('AI_CHAT_MODEL') || 'deepseek-v4-pro';
+        const model = configService.get<string>('AI_CHAT_MODEL') || 'deepseek-flash';
 
         if (aiEnabled && apiKey) {
           return new DeepSeekLlmProvider(apiKey, baseUrl, model);

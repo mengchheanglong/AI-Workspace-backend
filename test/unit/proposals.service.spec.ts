@@ -19,7 +19,7 @@ import {
 } from '../../src/modules/requirements/entities/requirement.entity';
 import { Meeting } from '../../src/modules/meetings/entities/meeting.entity';
 import { Task } from '../../src/modules/tasks/entities/task.entity';
-import { Decision } from '../../src/modules/decisions/entities/decision.entity';
+import { Decision, DecisionStatus } from '../../src/modules/decisions/entities/decision.entity';
 import { Project, ProjectStatus } from '../../src/modules/projects/entities/project.entity';
 import { ProjectRole } from '../../src/modules/projects/entities/project-member.entity';
 import { User, SystemRole } from '../../src/modules/users/entities/user.entity';
@@ -51,6 +51,7 @@ describe('ProposalsService', () => {
   let mockDecisionRepo: {
     create: jest.Mock;
     save: jest.Mock;
+    findOne: jest.Mock;
   };
   let mockProjectRepo: {
     findOne: jest.Mock;
@@ -131,6 +132,27 @@ describe('ProposalsService', () => {
     updatedAt: new Date(),
   };
 
+  const mockDecision: Decision = {
+    id: '55555555-5555-5555-5555-555555555555',
+    projectId: mockProjectId,
+    number: 1,
+    title: 'Adopt PostgreSQL Vector Store',
+    decisionText: 'We will use pgvector for document semantic search.',
+    rationale: 'Reduces operational overhead.',
+    status: DecisionStatus.ACCEPTED,
+    decidedAt: new Date(),
+    decidedBy: mockUserId,
+    sourceMeetingId: null,
+    requirementId: null,
+    supersedesDecisionId: null,
+    createdBy: mockUserId,
+    updatedBy: mockUserId,
+    version: 1,
+    deletedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   beforeEach(() => {
     mockProposalRepo = {
       create: jest.fn((dto: unknown) => ({
@@ -173,6 +195,7 @@ describe('ProposalsService', () => {
     mockDecisionRepo = {
       create: jest.fn((dto: unknown) => ({ id: 'dec-123', ...(dto as object) })),
       save: jest.fn((entity: unknown) => Promise.resolve(entity)),
+      findOne: jest.fn(),
     };
 
     mockProjectRepo = {
@@ -270,6 +293,45 @@ describe('ProposalsService', () => {
 
       await expect(
         service.generateTaskProposal(mockProjectId, mockUserId, 'non-existent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('generateDecisionTaskProposal', () => {
+    it('should generate structured task proposals from an architectural decision', async () => {
+      mockDecisionRepo.findOne.mockResolvedValue(mockDecision);
+
+      const result = await service.generateDecisionTaskProposal(
+        mockProjectId,
+        mockUserId,
+        mockDecision.id,
+      );
+
+      expect(result).toBeDefined();
+      expect(result.proposalType).toBe(ProposalType.TASK_PROPOSAL);
+      expect(result.sourceEntityType).toBe('DECISION');
+      expect(result.sourceEntityId).toBe(mockDecision.id);
+      expect(result.sourceRevision).toBe(mockDecision.version);
+      expect(result.status).toBe(ProposalStatus.PENDING);
+      expect(result.draftJson).toHaveProperty('type', 'CREATE_TASKS');
+      expect(result.draftJson).toHaveProperty('items');
+      const draft = result.draftJson as { items: Array<{ sourceIds: string[] }> };
+      expect(draft.items.length).toBeGreaterThan(0);
+      expect(draft.items[0]!.sourceIds).toContain(mockDecision.id);
+
+      expect(mockAuditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'AI_TASK_PROPOSAL_GENERATED',
+          projectId: mockProjectId,
+        }),
+      );
+    });
+
+    it('should throw NotFoundException if decision does not exist', async () => {
+      mockDecisionRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.generateDecisionTaskProposal(mockProjectId, mockUserId, 'non-existent'),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -625,6 +687,100 @@ describe('ProposalsService', () => {
       expect(mockOutboxService.emit).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ eventType: 'TASK_CREATED' }),
+      );
+    });
+
+    it('should transactionally create tasks from architectural decision proposal on valid confirmation', async () => {
+      const pendingDecisionProposal = {
+        id: 'prop-dec-123',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        proposalType: ProposalType.TASK_PROPOSAL,
+        sourceEntityType: 'DECISION',
+        sourceEntityId: mockDecision.id,
+        sourceRevision: 1,
+        draftJson: {
+          type: 'CREATE_TASKS',
+          items: [
+            {
+              itemId: 'item-dec-1',
+              title: 'Setup PostgreSQL pgvector extension',
+              description: 'Install and configure pgvector in Supabase database',
+              priority: Priority.HIGH,
+              assigneeId: null,
+              dueDate: '2026-10-15',
+              sourceIds: [mockDecision.id],
+            },
+          ],
+        },
+        version: 1,
+        status: ProposalStatus.PENDING,
+        expiresAt: new Date(Date.now() + 86400000),
+        confirmedBy: null,
+        confirmedAt: null,
+        resultRecordIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as AIProposal;
+
+      let capturedTask: Task | null = null;
+      let capturedCommit: ProposalCommit | null = null;
+
+      mockDataSource.transaction = jest.fn(
+        async (
+          cb: (manager: {
+            findOne: (entityClass: unknown) => Promise<unknown>;
+            query: () => Promise<unknown>;
+            create: (entityClass: unknown, plainObject: unknown) => unknown;
+            save: (entityClass: unknown, plainObject: unknown) => Promise<unknown>;
+          }) => Promise<unknown>,
+        ) => {
+          const mockManager = {
+            findOne: jest.fn((entityClass: unknown) => {
+              if (entityClass === AIProposal) return Promise.resolve(pendingDecisionProposal);
+              if (entityClass === Decision) return Promise.resolve(mockDecision);
+              return Promise.resolve(null);
+            }),
+            query: jest.fn().mockResolvedValue([{ max: 8 }]),
+            create: jest.fn((_entityClass: unknown, plainObject: unknown) => ({
+              id: 'gen-uuid',
+              ...(plainObject as object),
+            })),
+            save: jest.fn((entityClass: unknown, plainObject: unknown) => {
+              if (entityClass === Task) capturedTask = plainObject as Task;
+              if (entityClass === ProposalCommit) capturedCommit = plainObject as ProposalCommit;
+              return Promise.resolve({ id: 'saved-id', ...(plainObject as object) });
+            }),
+          };
+          return cb(mockManager);
+        },
+      );
+
+      const res = await service.confirmProposal(
+        mockProjectId,
+        mockActor,
+        'prop-dec-123',
+        { version: 1 },
+        'key-create-dec-task',
+      );
+
+      expect(res.resultRecordIds).toHaveLength(1);
+      expect(res.resultRecordIds[0]!.entityType).toBe('TASK');
+      expect(res.resultRecordIds[0]!.key).toBe('AIW-TSK-9'); // nextNumber was 9
+      expect(capturedTask).not.toBeNull();
+      expect(capturedTask!.number).toBe(9);
+      expect(capturedTask!.title).toBe('Setup PostgreSQL pgvector extension');
+      expect(capturedCommit).not.toBeNull();
+      expect(capturedCommit!.idempotencyKey).toBe('key-create-dec-task');
+      expect(mockAuditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'TASK_CREATED_FROM_AI_PROPOSAL',
+          entityType: 'TASK',
+          metadata: expect.objectContaining({
+            decisionId: mockDecision.id,
+            decisionKey: 'AIW-DEC-1',
+          }),
+        }),
       );
     });
 

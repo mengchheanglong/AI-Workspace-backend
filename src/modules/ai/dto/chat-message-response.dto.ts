@@ -44,7 +44,7 @@ export class ChatMessageResponseDto {
   })
   citations!: CitationItem[];
 
-  @ApiPropertyOptional({ example: 'deepseek-v4-pro', nullable: true })
+  @ApiPropertyOptional({ example: 'deepseek-flash', nullable: true })
   modelName!: string | null;
 
   @ApiPropertyOptional({ example: 450, nullable: true })
