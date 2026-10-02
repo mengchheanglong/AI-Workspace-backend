@@ -199,6 +199,28 @@ export class UsersService implements OnApplicationBootstrap {
     return this.userRepository.save(user);
   }
 
+  async updateProfile(
+    id: string,
+    dto: { displayName?: string; professionalRole?: ProfessionalRole },
+  ): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+
+    if (dto.displayName !== undefined && dto.displayName.trim()) {
+      user.displayName = dto.displayName.trim();
+    }
+    if (dto.professionalRole !== undefined) {
+      user.professionalRole = dto.professionalRole;
+    }
+
+    return this.userRepository.save(user);
+  }
+
   async updatePassword(id: string, passwordHash: string): Promise<User> {
     const user = await this.findById(id);
     if (!user) {

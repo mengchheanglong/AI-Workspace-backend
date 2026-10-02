@@ -27,6 +27,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { SessionAuthGuard } from '../../common/guards/session-auth.guard';
 import { CsrfGuard } from '../../common/guards/csrf.guard';
@@ -176,6 +177,20 @@ export class AuthController {
     await this.authService.changePassword(user.id, session?.id, dto);
     return {
       data: { status: 'ok' },
+    };
+  }
+
+  @Patch('profile')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SessionAuthGuard, CsrfGuard)
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Update profile for current authenticated user' })
+  @ApiHeader({ name: 'x-csrf-token', description: 'CSRF token', required: true })
+  @ApiOkResponse({ description: 'Profile updated successfully' })
+  async updateProfile(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
+    const updated = await this.authService.updateProfile(user.id, dto);
+    return {
+      data: UserResponseDto.fromEntity(updated),
     };
   }
 }
