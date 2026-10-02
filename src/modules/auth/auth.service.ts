@@ -5,11 +5,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
+import { WorkspaceInvitationsService } from '../users/workspace-invitations.service';
 import { PasswordService } from './services/password.service';
 import { CreatedSession, SessionService } from './services/session.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { ProfessionalRole, SystemRole, User } from '../users/entities/user.entity';
 
 // Pre-computed hash to mitigate timing attacks on nonexistent accounts
@@ -20,6 +22,7 @@ const DUMMY_HASH =
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly workspaceInvitationsService: WorkspaceInvitationsService,
     private readonly passwordService: PasswordService,
     private readonly sessionService: SessionService,
   ) {}
@@ -124,5 +127,37 @@ export class AuthService {
 
     // Invalidate all OTHER sessions for this user so only current session stays active
     await this.sessionService.revokeAllUserSessions(userId, currentSessionId);
+  }
+
+  async getInvitePreview(token: string) {
+    return this.workspaceInvitationsService.getInvitePreview(token);
+  }
+
+  async acceptInvite(dto: AcceptInvitationDto): Promise<{ user: User } & CreatedSession> {
+    const invite = await this.workspaceInvitationsService.findActiveInviteByToken(dto.token);
+
+    const existing = await this.usersService.findByEmail(invite.email);
+    if (existing) {
+      throw new ConflictException({
+        code: 'EMAIL_ALREADY_EXISTS',
+        message: 'A user with this email address already belongs to the workspace.',
+      });
+    }
+
+    const { user } = await this.usersService.create({
+      email: invite.email,
+      displayName: dto.name.trim(),
+      password: dto.password,
+      systemRole: invite.systemRole,
+      professionalRole: invite.professionalRole,
+    });
+
+    await this.workspaceInvitationsService.markAccepted(invite.id);
+
+    const created = await this.sessionService.createSession(user.id);
+    return {
+      user,
+      ...created,
+    };
   }
 }
