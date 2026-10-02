@@ -5,13 +5,13 @@ async function main() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     if (msg.type() === 'error') {
       console.log('BROWSER ERROR:', msg.text());
     }
   });
 
-  page.on('pageerror', err => {
+  page.on('pageerror', (err) => {
     console.log('UNCAUGHT PAGE ERROR:', err.message, err.stack);
   });
 

@@ -91,6 +91,37 @@ export interface GitHubIssuePayload {
   labels?: string[] | null;
   repositoryOwner?: string;
   repositoryName?: string;
+  comments?: Array<{ authorLogin?: string | null; body: string }>;
+  revision?: number;
+}
+
+export interface GitHubPullRequestPayload {
+  prId: string;
+  prNumber: number;
+  title: string;
+  body?: string | null;
+  state: string;
+  htmlUrl: string;
+  authorLogin?: string | null;
+  baseBranch?: string | null;
+  headBranch?: string | null;
+  isMerged?: boolean;
+  labels?: string[] | null;
+  repositoryOwner?: string;
+  repositoryName?: string;
+  revision?: number;
+}
+
+export interface GitHubCodeFilePayload {
+  fileId: string;
+  path: string;
+  fileName: string;
+  extension: string;
+  content: string;
+  size: number;
+  htmlUrl: string;
+  repositoryOwner?: string;
+  repositoryName?: string;
   revision?: number;
 }
 
@@ -381,6 +412,7 @@ export class IngestionService implements OnModuleInit {
       labels: payload.labels,
       repositoryOwner: payload.repositoryOwner,
       repositoryName: payload.repositoryName,
+      comments: payload.comments,
     });
 
     return this.processKnowledgeSource({
@@ -389,6 +421,62 @@ export class IngestionService implements OnModuleInit {
       sourceId: payload.issueId,
       sourceRevision: payload.revision ?? 1,
       title: `[GitHub #${payload.issueNumber}] ${payload.title}`,
+      extractedDoc,
+    });
+  }
+
+  async syncGitHubPullRequest(
+    projectId: string,
+    payload: GitHubPullRequestPayload,
+  ): Promise<KnowledgeSource | null> {
+    const extractedDoc = this.entityExtractor.extractGitHubPullRequest({
+      id: payload.prId,
+      prNumber: payload.prNumber,
+      title: payload.title,
+      body: payload.body,
+      state: payload.state,
+      htmlUrl: payload.htmlUrl,
+      authorLogin: payload.authorLogin,
+      baseBranch: payload.baseBranch,
+      headBranch: payload.headBranch,
+      isMerged: payload.isMerged,
+      labels: payload.labels,
+      repositoryOwner: payload.repositoryOwner,
+      repositoryName: payload.repositoryName,
+    });
+
+    return this.processKnowledgeSource({
+      projectId,
+      sourceType: KnowledgeSourceType.GITHUB_PR,
+      sourceId: payload.prId,
+      sourceRevision: payload.revision ?? 1,
+      title: `[GitHub PR #${payload.prNumber}] ${payload.title}`,
+      extractedDoc,
+    });
+  }
+
+  async syncGitHubCodeFile(
+    projectId: string,
+    payload: GitHubCodeFilePayload,
+  ): Promise<KnowledgeSource | null> {
+    const extractedDoc = this.entityExtractor.extractGitHubCodeFile({
+      id: payload.fileId,
+      path: payload.path,
+      fileName: payload.fileName,
+      extension: payload.extension,
+      content: payload.content,
+      size: payload.size,
+      repositoryOwner: payload.repositoryOwner,
+      repositoryName: payload.repositoryName,
+      htmlUrl: payload.htmlUrl,
+    });
+
+    return this.processKnowledgeSource({
+      projectId,
+      sourceType: KnowledgeSourceType.GITHUB_CODE,
+      sourceId: payload.fileId,
+      sourceRevision: payload.revision ?? 1,
+      title: `[Code] ${payload.path}`,
       extractedDoc,
     });
   }

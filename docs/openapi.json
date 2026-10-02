@@ -2996,7 +2996,9 @@
                 "TASK",
                 "MEETING",
                 "DOCUMENT",
-                "GITHUB_ISSUE"
+                "GITHUB_ISSUE",
+                "GITHUB_PR",
+                "GITHUB_CODE"
               ]
             }
           },
@@ -3130,7 +3132,9 @@
                 "DECISION",
                 "TASK",
                 "MEETING",
-                "GITHUB_ISSUE"
+                "GITHUB_ISSUE",
+                "GITHUB_PR",
+                "GITHUB_CODE"
               ]
             }
           },
@@ -4479,7 +4483,9 @@
               "TASK",
               "MEETING",
               "DOCUMENT",
-              "GITHUB_ISSUE"
+              "GITHUB_ISSUE",
+              "GITHUB_PR",
+              "GITHUB_CODE"
             ],
             "example": "REQUIREMENT"
           },
@@ -4552,6 +4558,14 @@
             "example": 2
           },
           "GITHUB_ISSUE": {
+            "type": "number",
+            "example": 0
+          },
+          "GITHUB_PR": {
+            "type": "number",
+            "example": 0
+          },
+          "GITHUB_CODE": {
             "type": "number",
             "example": 0
           }
@@ -4762,7 +4776,7 @@
           },
           "modelName": {
             "type": "object",
-            "example": "deepseek-v4-pro",
+            "example": "deepseek-flash",
             "nullable": true
           },
           "promptTokens": {
@@ -4817,7 +4831,9 @@
               "DECISION",
               "TASK",
               "MEETING",
-              "GITHUB_ISSUE"
+              "GITHUB_ISSUE",
+              "GITHUB_PR",
+              "GITHUB_CODE"
             ]
           }
         },

@@ -11,7 +11,7 @@ async function main() {
   page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
 
   const artifactDir = path.resolve(
-    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f'
+    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f',
   );
 
   console.log('Navigating to login...');

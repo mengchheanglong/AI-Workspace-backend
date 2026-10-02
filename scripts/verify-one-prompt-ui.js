@@ -9,7 +9,7 @@ async function main() {
   const page = await context.newPage();
 
   const artifactDir = path.resolve(
-    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f'
+    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f',
   );
 
   console.log('Navigating to login...');
@@ -50,7 +50,7 @@ async function main() {
 
   // Click Cursor tab
   const cursorBtn = page.locator('button', { hasText: 'Cursor' });
-  if (await cursorBtn.count() > 0) {
+  if ((await cursorBtn.count()) > 0) {
     await cursorBtn.first().click();
     await page.waitForTimeout(500);
     console.log('Capturing Cursor tab...');
@@ -62,7 +62,7 @@ async function main() {
 
   // Click Claude Code tab
   const claudeBtn = page.locator('button', { hasText: 'Claude Code' });
-  if (await claudeBtn.count() > 0) {
+  if ((await claudeBtn.count()) > 0) {
     await claudeBtn.first().click();
     await page.waitForTimeout(500);
     console.log('Capturing Claude Code tab...');
@@ -74,7 +74,7 @@ async function main() {
 
   // Click Codex tab
   const codexBtn = page.locator('button', { hasText: 'Codex' });
-  if (await codexBtn.count() > 0) {
+  if ((await codexBtn.count()) > 0) {
     await codexBtn.first().click();
     await page.waitForTimeout(500);
     console.log('Capturing Codex tab...');
@@ -86,7 +86,7 @@ async function main() {
 
   // Click Antigravity tab
   const agyBtn = page.locator('button', { hasText: 'Antigravity' });
-  if (await agyBtn.count() > 0) {
+  if ((await agyBtn.count()) > 0) {
     await agyBtn.first().click();
     await page.waitForTimeout(500);
     console.log('Capturing Antigravity tab...');
@@ -98,7 +98,7 @@ async function main() {
 
   // Switch back to One-Prompt Setup
   const onePromptBtn = page.locator('button', { hasText: 'One-Prompt Setup' });
-  if (await onePromptBtn.count() > 0) {
+  if ((await onePromptBtn.count()) > 0) {
     await onePromptBtn.first().click();
     await page.waitForTimeout(500);
     console.log('Capturing One-Prompt setup final...');

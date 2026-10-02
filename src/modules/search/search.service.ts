@@ -363,6 +363,8 @@ export class SearchService {
       MEETING: 0,
       DOCUMENT: 0,
       GITHUB_ISSUE: 0,
+      GITHUB_PR: 0,
+      GITHUB_CODE: 0,
     };
 
     const typeMap: Record<KnowledgeSourceType, SearchEntityType> = {
@@ -372,6 +374,8 @@ export class SearchService {
       [KnowledgeSourceType.TASK]: SearchEntityType.TASK,
       [KnowledgeSourceType.MEETING]: SearchEntityType.MEETING,
       [KnowledgeSourceType.GITHUB_ISSUE]: SearchEntityType.GITHUB_ISSUE,
+      [KnowledgeSourceType.GITHUB_PR]: SearchEntityType.GITHUB_PR,
+      [KnowledgeSourceType.GITHUB_CODE]: SearchEntityType.GITHUB_CODE,
     };
 
     const reverseTypeMap: Record<SearchEntityType, KnowledgeSourceType> = {
@@ -381,6 +385,8 @@ export class SearchService {
       [SearchEntityType.TASK]: KnowledgeSourceType.TASK,
       [SearchEntityType.MEETING]: KnowledgeSourceType.MEETING,
       [SearchEntityType.GITHUB_ISSUE]: KnowledgeSourceType.GITHUB_ISSUE,
+      [SearchEntityType.GITHUB_PR]: KnowledgeSourceType.GITHUB_PR,
+      [SearchEntityType.GITHUB_CODE]: KnowledgeSourceType.GITHUB_CODE,
     };
 
     const sourceTypeFilter = query.type ? reverseTypeMap[query.type] : undefined;

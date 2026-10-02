@@ -8,14 +8,19 @@ import { ProjectsModule } from '../../projects/projects.module';
 import { GITHUB_CLIENT } from './client/github-client.interface';
 import { HttpGitHubClientService } from './client/http-github-client.service';
 import { MockGitHubClientService } from './client/mock-github-client.service';
-import { GitHubConnection } from './entities/github-connection.entity';
-import { GitHubIssue } from './entities/github-issue.entity';
+import { GitHubConnection, GitHubIssue, GitHubPullRequest, GitHubRepoFile } from './entities';
 import { GitHubIntegrationController } from './github-integration.controller';
 import { GitHubIntegrationService } from './github-integration.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([GitHubConnection, GitHubIssue, Project]),
+    TypeOrmModule.forFeature([
+      GitHubConnection,
+      GitHubIssue,
+      GitHubPullRequest,
+      GitHubRepoFile,
+      Project,
+    ]),
     ConfigModule,
     AuditModule,
     IngestionModule,

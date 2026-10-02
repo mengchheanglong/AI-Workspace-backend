@@ -8,14 +8,18 @@ import { MockGitHubClientService } from '../../src/modules/integrations/github/c
 import {
   GitHubConnection,
   GitHubConnectionStatus,
-} from '../../src/modules/integrations/github/entities/github-connection.entity';
-import { GitHubIssue } from '../../src/modules/integrations/github/entities/github-issue.entity';
+  GitHubIssue,
+  GitHubPullRequest,
+  GitHubRepoFile,
+} from '../../src/modules/integrations/github/entities';
 import { GitHubIntegrationService } from '../../src/modules/integrations/github/github-integration.service';
 
 describe('GitHubIntegrationService', () => {
   let service: GitHubIntegrationService;
   let connectionRepo: jest.Mocked<Repository<GitHubConnection>>;
   let issueRepo: jest.Mocked<Repository<GitHubIssue>>;
+  let prRepo: jest.Mocked<Repository<GitHubPullRequest>>;
+  let fileRepo: jest.Mocked<Repository<GitHubRepoFile>>;
   let projectRepo: jest.Mocked<Repository<Project>>;
   let githubClient: MockGitHubClientService;
   let ingestionService: jest.Mocked<IngestionService>;
@@ -29,6 +33,7 @@ describe('GitHubIntegrationService', () => {
   beforeEach(() => {
     connectionRepo = {
       findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((dto) => ({ id: 'conn-1', ...dto })),
       save: jest.fn().mockImplementation((entity) => Promise.resolve({ id: 'conn-1', ...entity })),
       count: jest.fn().mockResolvedValue(0),
@@ -44,6 +49,26 @@ describe('GitHubIntegrationService', () => {
       createQueryBuilder: jest.fn(),
     } as unknown as jest.Mocked<Repository<GitHubIssue>>;
 
+    prRepo = {
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((dto) => ({ id: 'pr-uuid-1', ...dto })),
+      save: jest
+        .fn()
+        .mockImplementation((entity) => Promise.resolve({ id: 'pr-uuid-1', ...entity })),
+      count: jest.fn().mockResolvedValue(3),
+      createQueryBuilder: jest.fn(),
+    } as unknown as jest.Mocked<Repository<GitHubPullRequest>>;
+
+    fileRepo = {
+      findOne: jest.fn(),
+      create: jest.fn().mockImplementation((dto) => ({ id: 'file-uuid-1', ...dto })),
+      save: jest
+        .fn()
+        .mockImplementation((entity) => Promise.resolve({ id: 'file-uuid-1', ...entity })),
+      count: jest.fn().mockResolvedValue(10),
+      createQueryBuilder: jest.fn(),
+    } as unknown as jest.Mocked<Repository<GitHubRepoFile>>;
+
     projectRepo = {
       findOne: jest.fn().mockResolvedValue(mockProject),
     } as unknown as jest.Mocked<Repository<Project>>;
@@ -52,6 +77,8 @@ describe('GitHubIntegrationService', () => {
 
     ingestionService = {
       syncGitHubIssue: jest.fn().mockResolvedValue(null),
+      syncGitHubPullRequest: jest.fn().mockResolvedValue(null),
+      syncGitHubCodeFile: jest.fn().mockResolvedValue(null),
       deactivateSourcesByType: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<IngestionService>;
 
@@ -66,6 +93,8 @@ describe('GitHubIntegrationService', () => {
     service = new GitHubIntegrationService(
       connectionRepo,
       issueRepo,
+      prRepo,
+      fileRepo,
       projectRepo,
       githubClient,
       ingestionService,
@@ -268,6 +297,147 @@ describe('GitHubIntegrationService', () => {
       expect(result.items.length).toBe(1);
       expect(result.items[0]?.title).toBe('Issue 1');
       expect(mockQb.andWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('listConnections', () => {
+    it('returns all connected repositories for the project', async () => {
+      const mockConns = [
+        {
+          id: 'conn-1',
+          projectId,
+          repositoryOwner: 'org',
+          repositoryName: 'backend',
+          status: GitHubConnectionStatus.CONNECTED,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'conn-2',
+          projectId,
+          repositoryOwner: 'org',
+          repositoryName: 'frontend',
+          status: GitHubConnectionStatus.CONNECTED,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ] as GitHubConnection[];
+
+      connectionRepo.find.mockResolvedValue(mockConns);
+
+      const result = await service.listConnections(projectId);
+      expect(result.length).toBe(2);
+      expect(result[0]?.repositoryName).toBe('backend');
+      expect(result[1]?.repositoryName).toBe('frontend');
+    });
+  });
+
+  describe('syncCodebase', () => {
+    it('indexes filtered source files into KnowledgeSource GITHUB_CODE', async () => {
+      const mockConn = {
+        id: 'conn-1',
+        projectId,
+        repositoryOwner: 'org',
+        repositoryName: 'repo',
+        status: GitHubConnectionStatus.CONNECTED,
+        updatedAt: new Date(),
+      } as GitHubConnection;
+
+      connectionRepo.findOne.mockResolvedValue(mockConn);
+      fileRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.syncCodebase(projectId, actorId, 'conn-1');
+
+      expect(result.indexedFilesCount).toBeGreaterThan(0);
+      expect(ingestionService.syncGitHubCodeFile).toHaveBeenCalled();
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'GITHUB_CODE_INDEXED',
+        }),
+      );
+    });
+  });
+
+  describe('listPullRequests', () => {
+    it('queries pull requests with pagination and filters', async () => {
+      const mockPrs = [
+        {
+          id: 'pr-1',
+          projectId,
+          connectionId: 'conn-1',
+          prNumber: 10,
+          title: 'PR 10',
+          body: 'PR Body',
+          state: 'open',
+          htmlUrl: 'https://github.com/org/repo/pull/10',
+          authorLogin: 'alice',
+          baseBranch: 'main',
+          headBranch: 'feat/test',
+          isMerged: false,
+          labels: ['backend'],
+          githubCreatedAt: new Date(),
+          githubUpdatedAt: new Date(),
+          syncedAt: new Date(),
+        },
+      ] as GitHubPullRequest[];
+
+      const mockQb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([mockPrs, 1]),
+      };
+
+      prRepo.createQueryBuilder.mockReturnValue(mockQb as never);
+
+      const result = await service.listPullRequests(projectId, {
+        page: 1,
+        limit: 10,
+        state: 'open',
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items[0]?.prNumber).toBe(10);
+    });
+  });
+
+  describe('listFiles', () => {
+    it('queries indexed repo files with filters', async () => {
+      const mockFiles = [
+        {
+          id: 'file-1',
+          projectId,
+          connectionId: 'conn-1',
+          path: 'src/main.ts',
+          fileName: 'main.ts',
+          extension: 'ts',
+          size: 200,
+          htmlUrl: 'https://github.com/org/repo/blob/main/src/main.ts',
+          syncedAt: new Date(),
+        },
+      ] as GitHubRepoFile[];
+
+      const mockQb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([mockFiles, 1]),
+      };
+
+      fileRepo.createQueryBuilder.mockReturnValue(mockQb as never);
+
+      const result = await service.listFiles(projectId, {
+        page: 1,
+        limit: 10,
+        extension: 'ts',
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items[0]?.path).toBe('src/main.ts');
     });
   });
 });

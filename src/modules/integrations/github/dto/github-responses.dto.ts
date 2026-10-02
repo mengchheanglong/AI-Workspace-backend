@@ -10,6 +10,8 @@ export class GitHubConnectionResponseDto {
   lastSyncedAt!: string | null;
   errorSummary!: string | null;
   issueCount?: number;
+  pullRequestCount?: number;
+  fileCount?: number;
   createdAt!: string;
   updatedAt!: string;
 }
@@ -17,6 +19,8 @@ export class GitHubConnectionResponseDto {
 export class SyncGitHubResponseDto {
   syncedCount!: number;
   totalCount!: number;
+  syncedPrCount?: number;
+  totalPrCount?: number;
   lastSyncedAt!: string;
 }
 
@@ -34,4 +38,42 @@ export class GitHubIssueResponseDto {
   githubCreatedAt!: string;
   githubUpdatedAt!: string;
   syncedAt!: string;
+}
+
+export class GitHubPullRequestResponseDto {
+  id!: string;
+  projectId!: string;
+  connectionId!: string;
+  prNumber!: number;
+  title!: string;
+  body!: string | null;
+  state!: string;
+  htmlUrl!: string;
+  authorLogin!: string | null;
+  baseBranch!: string | null;
+  headBranch!: string | null;
+  isMerged!: boolean;
+  mergedAt!: string | null;
+  labels!: string[];
+  githubCreatedAt!: string;
+  githubUpdatedAt!: string;
+  syncedAt!: string;
+}
+
+export class GitHubRepoFileResponseDto {
+  id!: string;
+  projectId!: string;
+  connectionId!: string;
+  path!: string;
+  fileName!: string;
+  extension!: string;
+  size!: number;
+  htmlUrl!: string;
+  syncedAt!: string;
+}
+
+export class SyncCodebaseResponseDto {
+  indexedFilesCount!: number;
+  totalFiles!: number;
+  lastSyncedAt!: string;
 }

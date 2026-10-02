@@ -10,7 +10,7 @@ async function main() {
   const page = await context.newPage();
 
   const artifactDir = path.resolve(
-    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f'
+    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f',
   );
 
   console.log('Navigating to login...');
@@ -46,7 +46,7 @@ async function main() {
   // Test clicking the first "Copy Prompt" button
   console.log('Clicking Copy Prompt button...');
   const copyButtons = page.locator('button', { hasText: 'Copy Prompt' });
-  if (await copyButtons.count() > 0) {
+  if ((await copyButtons.count()) > 0) {
     await copyButtons.first().click();
     await page.waitForTimeout(400);
     console.log('Capturing integrations_mcp_prompt_copied.png...');

@@ -1,18 +1,18 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class ListGitHubIssuesQueryDto {
+export class ListGitHubFilesQueryDto {
   @IsOptional()
   @IsUUID()
   connectionId?: string;
 
   @IsOptional()
-  @IsIn(['all', 'open', 'closed'])
-  state?: 'all' | 'open' | 'closed';
+  @IsString()
+  q?: string;
 
   @IsOptional()
   @IsString()
-  q?: string;
+  extension?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -25,5 +25,5 @@ export class ListGitHubIssuesQueryDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  limit?: number = 20;
+  limit?: number = 50;
 }

@@ -1,7 +1,7 @@
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class ListGitHubIssuesQueryDto {
+export class ListGitHubPullRequestsQueryDto {
   @IsOptional()
   @IsUUID()
   connectionId?: string;

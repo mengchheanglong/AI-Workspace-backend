@@ -188,6 +188,7 @@ export class EntityExtractor {
     labels?: string[] | null;
     repositoryOwner?: string;
     repositoryName?: string;
+    comments?: Array<{ authorLogin?: string | null; body: string }>;
   }): ExtractedDocument {
     const repoInfo =
       issue.repositoryOwner && issue.repositoryName
@@ -209,6 +210,18 @@ export class EntityExtractor {
       sections.push({ title: 'Description', content: issue.body });
     }
 
+    if (issue.comments && issue.comments.length > 0) {
+      lines.push(`\nDiscussion (${issue.comments.length} comments):`);
+      for (const comment of issue.comments) {
+        const commentAuthor = comment.authorLogin ?? 'Anonymous';
+        lines.push(`- @${commentAuthor}: ${comment.body}`);
+        sections.push({
+          title: `Comment by @${commentAuthor}`,
+          content: comment.body,
+        });
+      }
+    }
+
     const text = lines.join('\n');
     return {
       text,
@@ -218,6 +231,88 @@ export class EntityExtractor {
         sourceType: 'GITHUB_ISSUE',
         sourceId: issue.id,
         title: `[GitHub #${issue.issueNumber}] ${issue.title}`,
+      },
+    };
+  }
+
+  extractGitHubPullRequest(pr: {
+    id: string;
+    prNumber: number;
+    title: string;
+    body?: string | null;
+    state: string;
+    htmlUrl: string;
+    authorLogin?: string | null;
+    baseBranch?: string | null;
+    headBranch?: string | null;
+    isMerged?: boolean;
+    labels?: string[] | null;
+    repositoryOwner?: string;
+    repositoryName?: string;
+  }): ExtractedDocument {
+    const repoInfo =
+      pr.repositoryOwner && pr.repositoryName
+        ? ` (${pr.repositoryOwner}/${pr.repositoryName})`
+        : '';
+    const lines: string[] = [
+      `GitHub Pull Request #${pr.prNumber}: ${pr.title}${repoInfo}`,
+      `State: ${pr.state.toUpperCase()} | Merged: ${pr.isMerged ? 'YES' : 'NO'} | Author: ${pr.authorLogin ?? 'Unknown'} | Branches: ${pr.headBranch ?? 'head'} -> ${pr.baseBranch ?? 'base'} | URL: ${pr.htmlUrl}`,
+    ];
+
+    if (pr.labels && pr.labels.length > 0) {
+      lines.push(`Labels: ${pr.labels.join(', ')}`);
+    }
+
+    const sections: { title?: string; content: string }[] = [];
+
+    if (pr.body) {
+      lines.push(`\nPull Request Overview:\n${pr.body}`);
+      sections.push({ title: 'Overview', content: pr.body });
+    }
+
+    const text = lines.join('\n');
+    return {
+      text,
+      sections: sections.length > 0 ? sections : [{ content: text }],
+      metadata: {
+        charCount: text.length,
+        sourceType: 'GITHUB_PR',
+        sourceId: pr.id,
+        title: `[GitHub PR #${pr.prNumber}] ${pr.title}`,
+      },
+    };
+  }
+
+  extractGitHubCodeFile(file: {
+    id: string;
+    path: string;
+    fileName: string;
+    extension: string;
+    content: string;
+    size: number;
+    repositoryOwner?: string;
+    repositoryName?: string;
+    htmlUrl: string;
+  }): ExtractedDocument {
+    const repoInfo =
+      file.repositoryOwner && file.repositoryName
+        ? `${file.repositoryOwner}/${file.repositoryName}`
+        : 'Repository';
+    const lines: string[] = [
+      `Code File: ${file.path} (${repoInfo})`,
+      `Type: ${file.extension.toUpperCase()} | Size: ${file.size} bytes | URL: ${file.htmlUrl}`,
+      `\nSource Code:\n${file.content}`,
+    ];
+
+    const text = lines.join('\n');
+    return {
+      text,
+      sections: [{ title: file.path, content: file.content }],
+      metadata: {
+        charCount: text.length,
+        sourceType: 'GITHUB_CODE',
+        sourceId: file.id,
+        title: `[Code] ${file.path}`,
       },
     };
   }

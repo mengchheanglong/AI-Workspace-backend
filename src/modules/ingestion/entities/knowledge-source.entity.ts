@@ -19,6 +19,8 @@ export enum KnowledgeSourceType {
   TASK = 'TASK',
   MEETING = 'MEETING',
   GITHUB_ISSUE = 'GITHUB_ISSUE',
+  GITHUB_PR = 'GITHUB_PR',
+  GITHUB_CODE = 'GITHUB_CODE',
 }
 
 export enum KnowledgeSourceStatus {

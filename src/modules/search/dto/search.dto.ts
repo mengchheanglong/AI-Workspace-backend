@@ -9,6 +9,8 @@ export enum SearchEntityType {
   MEETING = 'MEETING',
   DOCUMENT = 'DOCUMENT',
   GITHUB_ISSUE = 'GITHUB_ISSUE',
+  GITHUB_PR = 'GITHUB_PR',
+  GITHUB_CODE = 'GITHUB_CODE',
 }
 
 export class SearchQueryDto {
@@ -135,6 +137,12 @@ export class SearchMetaCountsDto {
 
   @ApiPropertyOptional({ example: 0 })
   GITHUB_ISSUE?: number;
+
+  @ApiPropertyOptional({ example: 0 })
+  GITHUB_PR?: number;
+
+  @ApiPropertyOptional({ example: 0 })
+  GITHUB_CODE?: number;
 }
 
 export class SearchMetaDto {

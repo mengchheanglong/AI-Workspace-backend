@@ -10,11 +10,11 @@ async function main() {
   const page = await context.newPage();
 
   const artifactDir = path.resolve(
-    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f'
+    'C:/Users/User/.gemini/antigravity/brain/b7e1f7b7-ea15-4319-8273-c85a53d28c1f',
   );
 
-  page.on('console', msg => console.log('PAGE LOG:', msg.text()));
-  page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
+  page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
+  page.on('pageerror', (err) => console.log('PAGE ERROR:', err.message));
 
   console.log('Navigating to login...');
   await page.goto('http://localhost:3002/login', { waitUntil: 'domcontentloaded' });
@@ -37,7 +37,9 @@ async function main() {
 
   // Click Upload button (it says "Upload Document")
   console.log('Opening Upload Modal...');
-  const uploadBtn = page.locator('button:has-text("Upload Document"), button:has-text("Upload")').first();
+  const uploadBtn = page
+    .locator('button:has-text("Upload Document"), button:has-text("Upload")')
+    .first();
   await uploadBtn.waitFor({ state: 'visible', timeout: 10000 });
   await uploadBtn.click();
   await page.waitForTimeout(800);
@@ -76,7 +78,7 @@ async function main() {
   // 3. Test Retry button
   console.log('Testing Retry button...');
   const retryBtn = page.locator('button', { hasText: 'Retry' });
-  if (await retryBtn.count() > 0) {
+  if ((await retryBtn.count()) > 0) {
     await retryBtn.first().click();
     await page.waitForTimeout(400);
     console.log('Capturing documents_upload_modal_retried.png...');

@@ -389,7 +389,10 @@ export class AiwMcpServer {
       'get_project',
       'Get comprehensive project profile (name, key, description, status, createdAt, updatedAt) by Project Key or UUID.',
       {
-        projectKeyOrId: z.string().optional().describe('Project Key (e.g. "AIW") or UUID. Defaults to active project.'),
+        projectKeyOrId: z
+          .string()
+          .optional()
+          .describe('Project Key (e.g. "AIW") or UUID. Defaults to active project.'),
       },
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
@@ -435,7 +438,10 @@ export class AiwMcpServer {
       'Get aggregated project health metrics including progress rate percentage, counts of tasks by status, overdue tasks, and recent activity.',
       {
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
-        timezone: z.string().optional().describe('Display timezone (e.g. "Asia/Bangkok", defaults to Asia/Bangkok).'),
+        timezone: z
+          .string()
+          .optional()
+          .describe('Display timezone (e.g. "Asia/Bangkok", defaults to Asia/Bangkok).'),
       },
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
@@ -454,7 +460,10 @@ export class AiwMcpServer {
       'Get the recent audit / activity stream for the workspace showing recent creations, transitions, and edits.',
       {
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
-        limit: z.number().optional().describe('Maximum number of activity events to return (default 20).'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum number of activity events to return (default 20).'),
       },
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
@@ -496,8 +505,14 @@ export class AiwMcpServer {
           .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
           .optional()
           .describe('Filter by requirement priority.'),
-        number: z.number().optional().describe('Filter by requirement number (e.g. 12 for AIW-REQ-12).'),
-        search: z.string().optional().describe('Text search across title, description, and acceptance criteria.'),
+        number: z
+          .number()
+          .optional()
+          .describe('Filter by requirement number (e.g. 12 for AIW-REQ-12).'),
+        search: z
+          .string()
+          .optional()
+          .describe('Text search across title, description, and acceptance criteria.'),
         limit: z.number().optional().describe('Maximum requirements to return (default 50).'),
       },
       async (args) => {
@@ -531,7 +546,9 @@ export class AiwMcpServer {
       'get_requirement',
       'Get complete requirement specification including description, acceptance criteria, revision history, and current version by Key (e.g. "AIW-REQ-12") or UUID.',
       {
-        requirementKeyOrId: z.string().describe('Requirement Key (e.g. "AIW-REQ-12" or "12") or UUID.'),
+        requirementKeyOrId: z
+          .string()
+          .describe('Requirement Key (e.g. "AIW-REQ-12" or "12") or UUID.'),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -549,9 +566,18 @@ export class AiwMcpServer {
       'Create a new engineering or product requirement specification in the project workspace.',
       {
         title: z.string().min(1).max(500).describe('Requirement title'),
-        description: z.string().optional().describe('Detailed description and background of the requirement'),
-        acceptanceCriteria: z.string().optional().describe('Bullet points or criteria for verification and acceptance'),
-        priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM').describe('Requirement priority'),
+        description: z
+          .string()
+          .optional()
+          .describe('Detailed description and background of the requirement'),
+        acceptanceCriteria: z
+          .string()
+          .optional()
+          .describe('Bullet points or criteria for verification and acceptance'),
+        priority: z
+          .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
+          .default('MEDIUM')
+          .describe('Requirement priority'),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -583,9 +609,16 @@ export class AiwMcpServer {
       'update_requirement_status',
       'Update the status of a project requirement (e.g. move from DRAFT -> APPROVED or IN_PROGRESS -> DONE).',
       {
-        requirementKeyOrId: z.string().describe('Requirement Key (e.g. "AIW-REQ-12" or "12") or UUID.'),
-        status: z.enum(['DRAFT', 'IN_REVIEW', 'APPROVED', 'IN_PROGRESS', 'DONE', 'ARCHIVED']).describe('Target status.'),
-        comment: z.string().optional().describe('Summary of the changes or justification for the status update.'),
+        requirementKeyOrId: z
+          .string()
+          .describe('Requirement Key (e.g. "AIW-REQ-12" or "12") or UUID.'),
+        status: z
+          .enum(['DRAFT', 'IN_REVIEW', 'APPROVED', 'IN_PROGRESS', 'DONE', 'ARCHIVED'])
+          .describe('Target status.'),
+        comment: z
+          .string()
+          .optional()
+          .describe('Summary of the changes or justification for the status update.'),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -595,7 +628,9 @@ export class AiwMcpServer {
         let updatedDescription = reqItem.description;
         if (args.comment && args.comment.trim()) {
           const dateStr = new Date().toISOString().split('T')[0];
-          updatedDescription = (reqItem.description || '').trim() + `\n\n> **[${dateStr} Status Update]**: ${args.comment.trim()}`;
+          updatedDescription =
+            (reqItem.description || '').trim() +
+            `\n\n> **[${dateStr} Status Update]**: ${args.comment.trim()}`;
         }
 
         const res = await this.request(`/projects/${projectId}/requirements/${reqItem.id}`, {
@@ -633,7 +668,10 @@ export class AiwMcpServer {
           .enum(['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE', 'BLOCKED', 'CANCELLED'])
           .optional()
           .describe('Filter by task status.'),
-        priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional().describe('Filter by task priority.'),
+        priority: z
+          .enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT'])
+          .optional()
+          .describe('Filter by task priority.'),
         number: z.number().optional().describe('Filter by task number (e.g. 38 for AIW-TSK-38).'),
         search: z.string().optional().describe('Text search across task titles and descriptions.'),
         limit: z.number().optional().describe('Maximum number of tasks to return (default 50).'),
@@ -673,7 +711,9 @@ export class AiwMcpServer {
       'get_task',
       'Get complete details, description, acceptance criteria, assignee, and version for a task by its Key (e.g. AIW-TSK-38) or UUID.',
       {
-        taskKeyOrId: z.string().describe('The task key (e.g. "AIW-TSK-38" or number "38") or UUID.'),
+        taskKeyOrId: z
+          .string()
+          .describe('The task key (e.g. "AIW-TSK-38" or number "38") or UUID.'),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -699,11 +739,16 @@ export class AiwMcpServer {
         status: z
           .enum(['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE', 'BLOCKED', 'CANCELLED'])
           .describe('The target status to transition the task into.'),
-        blockedReason: z.string().optional().describe('Explanation required when moving task to BLOCKED status.'),
+        blockedReason: z
+          .string()
+          .optional()
+          .describe('Explanation required when moving task to BLOCKED status.'),
         comment: z
           .string()
           .optional()
-          .describe('Work log summary, PR link, or commit reference describing what was accomplished.'),
+          .describe(
+            'Work log summary, PR link, or commit reference describing what was accomplished.',
+          ),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -749,9 +794,19 @@ export class AiwMcpServer {
       'Create a new development task on the Kanban board (e.g. for follow-ups, tech debt, or discovered bugs).',
       {
         title: z.string().min(1).max(500).describe('Task title'),
-        description: z.string().optional().describe('Task detailed description and acceptance criteria'),
-        priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM').describe('Task priority'),
-        dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Due date in YYYY-MM-DD format'),
+        description: z
+          .string()
+          .optional()
+          .describe('Task detailed description and acceptance criteria'),
+        priority: z
+          .enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT'])
+          .default('MEDIUM')
+          .describe('Task priority'),
+        dueDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .describe('Due date in YYYY-MM-DD format'),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -892,7 +947,10 @@ export class AiwMcpServer {
       'List scheduled, active, and past project meetings with status (SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED), times, and search query.',
       {
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
-        status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional().describe('Filter by status.'),
+        status: z
+          .enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'])
+          .optional()
+          .describe('Filter by status.'),
         search: z.string().optional().describe('Search across meeting title, agenda, and notes.'),
         limit: z.number().optional().describe('Maximum number of meetings to return (default 20).'),
       },
@@ -986,8 +1044,14 @@ export class AiwMcpServer {
       {
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
         search: z.string().optional().describe('Search by document title or description.'),
-        mimeType: z.string().optional().describe('Filter by mime type (e.g. "application/pdf", "text/markdown").'),
-        limit: z.number().optional().describe('Maximum number of documents to return (default 50).'),
+        mimeType: z
+          .string()
+          .optional()
+          .describe('Filter by mime type (e.g. "application/pdf", "text/markdown").'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum number of documents to return (default 50).'),
       },
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
@@ -1035,7 +1099,10 @@ export class AiwMcpServer {
       'search_workspace',
       'Search across tasks, decisions, requirements, meetings, and documents in the project workspace using keyword, semantic, or hybrid search mode.',
       {
-        query: z.string().min(1).describe('Search query text, natural language question, or keywords'),
+        query: z
+          .string()
+          .min(1)
+          .describe('Search query text, natural language question, or keywords'),
         type: z
           .enum(['ALL', 'TASK', 'DECISION', 'REQUIREMENT', 'MEETING', 'DOCUMENT'])
           .optional()
@@ -1043,7 +1110,9 @@ export class AiwMcpServer {
         mode: z
           .enum(['keyword', 'semantic', 'hybrid'])
           .optional()
-          .describe('Search mode: "keyword", "semantic" (vector embeddings), or "hybrid" (combined RAG). Default: keyword.'),
+          .describe(
+            'Search mode: "keyword", "semantic" (vector embeddings), or "hybrid" (combined RAG). Default: keyword.',
+          ),
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
       },
       async (args) => {
@@ -1100,7 +1169,10 @@ export class AiwMcpServer {
       'List synchronized GitHub issues for the project workspace, including issue numbers, status (open/closed), labels, and external links.',
       {
         projectKeyOrId: z.string().optional().describe('Project Key or UUID.'),
-        state: z.enum(['open', 'closed', 'all']).optional().describe('Filter by GitHub issue state (default all).'),
+        state: z
+          .enum(['open', 'closed', 'all'])
+          .optional()
+          .describe('Filter by GitHub issue state (default all).'),
         search: z.string().optional().describe('Search across issue title and body.'),
         limit: z.number().optional().describe('Maximum number of issues to return (default 50).'),
       },

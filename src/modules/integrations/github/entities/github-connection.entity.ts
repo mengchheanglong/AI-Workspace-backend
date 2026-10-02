@@ -11,6 +11,8 @@ import {
 } from 'typeorm';
 import { Project } from '../../../projects/entities/project.entity';
 import { GitHubIssue } from './github-issue.entity';
+import { GitHubPullRequest } from './github-pull-request.entity';
+import { GitHubRepoFile } from './github-repo-file.entity';
 
 export enum GitHubConnectionStatus {
   CONNECTED = 'CONNECTED',
@@ -20,11 +22,14 @@ export enum GitHubConnectionStatus {
 
 @Entity('github_connections')
 @Index('idx_github_connections_project_status', ['projectId', 'status'])
+@Index('idx_github_connections_project_repo', ['projectId', 'repositoryOwner', 'repositoryName'], {
+  unique: true,
+})
 export class GitHubConnection {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ name: 'project_id', type: 'uuid', unique: true })
+  @Column({ name: 'project_id', type: 'uuid' })
   projectId!: string;
 
   @ManyToOne(() => Project, { onDelete: 'CASCADE' })
@@ -67,4 +72,10 @@ export class GitHubConnection {
 
   @OneToMany(() => GitHubIssue, (issue) => issue.connection)
   issues?: GitHubIssue[];
+
+  @OneToMany(() => GitHubPullRequest, (pr) => pr.connection)
+  pullRequests?: GitHubPullRequest[];
+
+  @OneToMany(() => GitHubRepoFile, (file) => file.connection)
+  files?: GitHubRepoFile[];
 }

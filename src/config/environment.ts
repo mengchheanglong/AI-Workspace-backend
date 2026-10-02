@@ -54,9 +54,7 @@ const schema = z
     AI_LLM_PROVIDER: z.literal('deepseek').default('deepseek'),
     DEEPSEEK_API_KEY: emptyStringToUndefined(z.string().optional()),
     DEEPSEEK_BASE_URL: z.literal('https://api.deepseek.com').default('https://api.deepseek.com'),
-    AI_CHAT_MODEL: z
-      .enum(['deepseek-flash', 'deepseek-v4-pro'])
-      .default('deepseek-flash'),
+    AI_CHAT_MODEL: z.enum(['deepseek-flash', 'deepseek-v4-pro']).default('deepseek-flash'),
     AI_EMBEDDING_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
     OPENAI_API_KEY: emptyStringToUndefined(z.string().optional()),
     OPENAI_EMBEDDING_BASE_URL: z.string().default('https://api.openai.com/v1'),
