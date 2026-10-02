@@ -61,6 +61,24 @@ export class ProposalsController {
     return ProposalResponseDto.fromEntity(proposal);
   }
 
+  @Post('decisions/:decisionId/task-proposals')
+  @ApiOperation({ summary: 'Generate task proposals from an architectural decision' })
+  @ApiCreatedResponse({ description: 'Task proposal draft created', type: ProposalResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiNotFoundResponse({ description: 'Decision or project not found' })
+  async generateDecisionTaskProposal(
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Param('decisionId', ParseUUIDPipe) decisionId: string,
+    @CurrentUser() user: User,
+  ): Promise<ProposalResponseDto> {
+    const proposal = await this.proposalsService.generateDecisionTaskProposal(
+      projectId,
+      user.id,
+      decisionId,
+    );
+    return ProposalResponseDto.fromEntity(proposal);
+  }
+
   @Post('meetings/:meetingId/analysis-proposals')
   @ApiOperation({ summary: 'Generate meeting analysis proposal from transcript and notes' })
   @ApiCreatedResponse({

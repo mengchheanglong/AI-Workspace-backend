@@ -37,7 +37,7 @@ export class DeepSeekLlmProvider implements LlmProvider {
   constructor(
     private readonly apiKey: string,
     private readonly baseUrl = 'https://api.deepseek.com',
-    private readonly modelName = 'deepseek-v4-pro',
+    private readonly modelName = 'deepseek-flash',
   ) {}
 
   async generateAnswer(params: GenerateAnswerParams): Promise<GenerateAnswerResult> {

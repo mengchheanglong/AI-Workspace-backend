@@ -9,6 +9,15 @@ export class ListTasksQueryDto {
   @IsEnum(TaskStatus)
   status?: TaskStatus;
 
+  @ApiPropertyOptional({ description: 'Filter by task number (e.g. 38 for AIW-TSK-38)' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value !== undefined && value !== '' ? parseInt(value as string, 10) : undefined,
+  )
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @ApiPropertyOptional({ enum: Priority })
   @IsOptional()
   @IsEnum(Priority)

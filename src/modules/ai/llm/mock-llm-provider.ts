@@ -296,8 +296,10 @@ export class MockLlmProvider implements LlmProvider {
       };
     }
 
-    // Default: Task Proposal generation (e.g. from requirement)
-    const reqTitleMatch = userPrompt.match(/Requirement:\s*([^\n]+)/i);
+    // Default: Task Proposal generation (e.g. from requirement or decision)
+    const reqTitleMatch = userPrompt.match(
+      /(?:Requirement|Decision|Architectural Decision):\s*([^\n]+)/i,
+    );
     const reqTitle = reqTitleMatch ? reqTitleMatch[1]!.trim() : 'Feature Implementation';
 
     const taskProposal = {

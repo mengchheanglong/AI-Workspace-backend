@@ -189,7 +189,7 @@ describe('AiService', () => {
             revision: 1,
           },
         ],
-        modelName: 'deepseek-v4-pro',
+        modelName: 'deepseek-flash',
         promptTokens: 120,
         completionTokens: 50,
       });

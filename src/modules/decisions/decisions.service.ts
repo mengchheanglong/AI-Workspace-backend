@@ -156,6 +156,9 @@ export class DecisionsService {
       .where('decision.projectId = :projectId', { projectId })
       .andWhere('decision.deletedAt IS NULL');
 
+    if (query.number !== undefined) {
+      qb.andWhere('decision.number = :number', { number: query.number });
+    }
     if (query.status) {
       qb.andWhere('decision.status = :status', { status: query.status });
     }

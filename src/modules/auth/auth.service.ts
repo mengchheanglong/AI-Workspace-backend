@@ -12,6 +12,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfessionalRole, SystemRole, User } from '../users/entities/user.entity';
 
 // Pre-computed hash to mitigate timing attacks on nonexistent accounts
@@ -127,6 +128,10 @@ export class AuthService {
 
     // Invalidate all OTHER sessions for this user so only current session stays active
     await this.sessionService.revokeAllUserSessions(userId, currentSessionId);
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<User> {
+    return this.usersService.updateProfile(userId, dto);
   }
 
   async getInvitePreview(token: string) {

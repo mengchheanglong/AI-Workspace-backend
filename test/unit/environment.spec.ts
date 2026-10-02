@@ -16,7 +16,7 @@ describe('Environment validation', () => {
     expect(config.AI_ENABLED).toBe(false);
     expect(config.SWAGGER_ENABLED).toBe(false);
     expect(config.PORT).toBe(3000);
-    expect(config.AI_CHAT_MODEL).toBe('deepseek-v4-pro');
+    expect(config.AI_CHAT_MODEL).toBe('deepseek-flash');
   });
 
   it.each([
