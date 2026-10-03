@@ -58,14 +58,16 @@ export class KnowledgeChunk {
 
   @Column({
     type: 'text',
+    nullable: true,
     transformer: {
-      to: (val: number[] | string): string => {
+      to: (val: number[] | string | null): string | null => {
         if (Array.isArray(val)) {
           return `[${val.join(',')}]`;
         }
         return val;
       },
-      from: (val: string | number[]): number[] => {
+      from: (val: string | number[] | null): number[] | null => {
+        if (val === null) return null;
         if (typeof val === 'string') {
           try {
             return JSON.parse(val);
@@ -77,7 +79,7 @@ export class KnowledgeChunk {
       },
     },
   })
-  embedding!: number[] | string;
+  embedding!: number[] | string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

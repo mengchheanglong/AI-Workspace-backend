@@ -134,7 +134,7 @@ export class IngestionService implements OnModuleInit {
   private readonly docxExtractor = new DocxExtractor();
   private readonly entityExtractor = new EntityExtractor();
   private readonly chunker: SemanticChunker;
-  private embeddingProvider: EmbeddingProvider;
+  private embeddingProvider?: EmbeddingProvider;
 
   constructor(
     @InjectRepository(KnowledgeSource)
@@ -155,7 +155,7 @@ export class IngestionService implements OnModuleInit {
       approxCharsPerToken: 4,
     });
 
-    const providerType = this.configService.get<string>('AI_EMBEDDING_PROVIDER') ?? 'mock';
+    const providerType = this.configService.get<string>('AI_EMBEDDING_PROVIDER') ?? 'disabled';
     const openAiApiKey = this.configService.get<string>('OPENAI_API_KEY');
 
     if (providerType === 'openai' && openAiApiKey) {
@@ -166,9 +166,12 @@ export class IngestionService implements OnModuleInit {
         modelName: this.configService.get<string>('AI_EMBEDDING_MODEL') ?? 'text-embedding-3-small',
       });
       this.logger.log('IngestionService using OpenAiEmbeddingProvider');
-    } else {
+    } else if (providerType === 'mock' && process.env.NODE_ENV === 'test') {
       this.embeddingProvider = new MockEmbeddingProvider(1536, 'mock-embedding-3-small');
-      this.logger.log('IngestionService using deterministic MockEmbeddingProvider');
+    } else {
+      this.logger.log(
+        'IngestionService indexing source text for keyword search without embeddings',
+      );
     }
   }
 
@@ -180,7 +183,7 @@ export class IngestionService implements OnModuleInit {
     this.embeddingProvider = provider;
   }
 
-  getEmbeddingProvider(): EmbeddingProvider {
+  getEmbeddingProvider(): EmbeddingProvider | undefined {
     return this.embeddingProvider;
   }
 
@@ -641,7 +644,8 @@ export class IngestionService implements OnModuleInit {
 
       // Generate embeddings
       const texts = chunks.map((c) => c.text);
-      const embeddings = await this.embeddingProvider.embed(texts);
+      const embeddingProvider = this.embeddingProvider;
+      const embeddings = embeddingProvider ? await embeddingProvider.embed(texts) : [];
 
       // Atomic activation in transaction
       return await this.dataSource.transaction(async (tx) => {
@@ -665,9 +669,9 @@ export class IngestionService implements OnModuleInit {
             text: c.text,
             tokenCount: c.tokenCount,
             metadata: c.metadata,
-            embeddingModel: this.embeddingProvider.modelName,
-            embeddingDimensions: this.embeddingProvider.dimensions,
-            embedding: embeddings[idx] ?? [],
+            embeddingModel: embeddingProvider?.modelName ?? 'keyword-only',
+            embeddingDimensions: embeddingProvider?.dimensions ?? 0,
+            embedding: embeddingProvider ? (embeddings[idx] ?? []) : null,
           }),
         );
 
@@ -787,6 +791,17 @@ export class IngestionService implements OnModuleInit {
         chunkCount: chunkCountsMap.get(s.id) ?? 0,
       }),
     );
+  }
+
+  async isSourceIndexed(
+    projectId: string,
+    sourceType: KnowledgeSourceType,
+    sourceId: string,
+  ): Promise<boolean> {
+    const source = await this.sourceRepo.findOne({
+      where: { projectId, sourceType, sourceId, deletedAt: IsNull() },
+    });
+    return source?.status === KnowledgeSourceStatus.INDEXED && source.activeIndexVersion > 0;
   }
 
   async getSource(

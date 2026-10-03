@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import {
   ChatCompletionMessage,
   GenerateAnswerParams,
@@ -57,6 +57,7 @@ export class DeepSeekLlmProvider implements LlmProvider {
         },
         body: JSON.stringify({
           model: this.modelName,
+          thinking: { type: 'disabled' },
           messages: messages.map((m: ChatCompletionMessage) => ({
             role: m.role,
             content: m.content,
@@ -75,6 +76,12 @@ export class DeepSeekLlmProvider implements LlmProvider {
 
       const data = (await response.json()) as DeepSeekApiResponse;
       const content = data.choices?.[0]?.message?.content || '';
+      if (!content.trim() || data.choices?.[0]?.finish_reason === 'length') {
+        throw new ServiceUnavailableException({
+          code: 'AI_OUTPUT_TRUNCATED',
+          message: 'AI could not complete its answer. Please retry with a shorter question.',
+        });
+      }
 
       const citations = this.extractCitations(content, evidence);
 
@@ -107,7 +114,7 @@ export class DeepSeekLlmProvider implements LlmProvider {
       userPrompt,
       schemaDescription,
       temperature = 0.1,
-      maxTokens = 2000,
+      maxTokens = 6000,
     } = params;
 
     const endpoint = `${this.baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -133,6 +140,7 @@ export class DeepSeekLlmProvider implements LlmProvider {
             { role: 'user', content: userPrompt },
           ],
           response_format: { type: 'json_object' },
+          thinking: { type: 'disabled' },
           temperature,
           max_tokens: maxTokens,
         }),
@@ -146,14 +154,28 @@ export class DeepSeekLlmProvider implements LlmProvider {
       }
 
       const resData = (await response.json()) as DeepSeekApiResponse;
+      if (resData.choices?.[0]?.finish_reason === 'length') {
+        throw new ServiceUnavailableException({
+          code: 'AI_OUTPUT_TRUNCATED',
+          message:
+            'AI output exceeded its limit. Retry with shorter meeting notes or fewer requested items.',
+        });
+      }
       const rawJson = resData.choices?.[0]?.message?.content || '{}';
 
       let parsed: T;
       try {
         parsed = JSON.parse(rawJson) as T;
       } catch (error: unknown) {
-        this.logger.error(`Failed to parse DeepSeek structured JSON output: ${rawJson}`);
-        throw new Error('Invalid JSON received from AI provider', { cause: error });
+        this.logger.error('AI_OUTPUT_INVALID_JSON');
+        throw new ServiceUnavailableException(
+          {
+            code: 'AI_OUTPUT_INVALID_JSON',
+            message:
+              'AI returned an incomplete or invalid draft. No records were created. Please retry.',
+          },
+          { cause: error },
+        );
       }
 
       return {

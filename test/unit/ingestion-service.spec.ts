@@ -234,9 +234,9 @@ describe('IngestionService', () => {
 
     it('marks embedding failures and propagates them so the outbox can retry', async () => {
       sourceRepo.findOne.mockResolvedValue(null);
-      jest
-        .spyOn(service.getEmbeddingProvider(), 'embed')
-        .mockRejectedValue(new Error('embedding unavailable'));
+      const provider = service.getEmbeddingProvider();
+      if (!provider) throw new Error('Expected the explicit unit-test provider.');
+      jest.spyOn(provider, 'embed').mockRejectedValue(new Error('embedding unavailable'));
       await expect(service.syncDocument('proj-1', payload)).rejects.toThrow(
         'embedding unavailable',
       );
