@@ -17,15 +17,21 @@ describe('AiwMcpServer', () => {
   });
 
   it('correctly parses task key numbers for resolving tasks', () => {
-    const extractFn = (mcp as any).extractNumberFromKey.bind(mcp);
+    const extractFn = (
+      mcp as unknown as { extractNumberFromKey: (key: string, prefix: string) => number | null }
+    ).extractNumberFromKey.bind(mcp);
     expect(extractFn('AIW-TSK-38', 'TSK')).toBe(38);
     expect(extractFn('TSK-105', 'TSK')).toBe(105);
     expect(extractFn('42', 'TSK')).toBe(42);
     expect(extractFn('invalid', 'TSK')).toBeNull();
+    expect(extractFn('junk-42-tail', 'TSK')).toBeNull();
+    expect(extractFn('AIW-TASK-38', '(?:TSK|TASK)')).toBe(38);
   });
 
   it('correctly parses decision key numbers for resolving ADRs', () => {
-    const extractFn = (mcp as any).extractNumberFromKey.bind(mcp);
+    const extractFn = (
+      mcp as unknown as { extractNumberFromKey: (key: string, prefix: string) => number | null }
+    ).extractNumberFromKey.bind(mcp);
     expect(extractFn('AIW-DEC-1', 'DEC')).toBe(1);
     expect(extractFn('DEC-12', 'DEC')).toBe(12);
     expect(extractFn('3', 'DEC')).toBe(3);

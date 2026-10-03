@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ProposalsService } from '../../src/modules/ai/proposals.service';
 import {
@@ -24,6 +25,9 @@ import { Project, ProjectStatus } from '../../src/modules/projects/entities/proj
 import { ProjectRole } from '../../src/modules/projects/entities/project-member.entity';
 import { User, SystemRole } from '../../src/modules/users/entities/user.entity';
 import { MockLlmProvider } from '../../src/modules/ai/llm/mock-llm-provider';
+import { ContextAssembler } from '../../src/modules/ai/context/context-assembler';
+import { KnowledgeSourceType } from '../../src/modules/ingestion/entities';
+import { Document } from '../../src/modules/documents/entities/document.entity';
 
 describe('ProposalsService', () => {
   let service: ProposalsService;
@@ -69,6 +73,7 @@ describe('ProposalsService', () => {
   let mockDataSource: {
     transaction: jest.Mock;
   };
+  let mockRetrieval: { retrieve: jest.Mock };
 
   const mockProjectId = '11111111-1111-1111-1111-111111111111';
   const mockUserId = '22222222-2222-2222-2222-222222222222';
@@ -245,6 +250,7 @@ describe('ProposalsService', () => {
       }),
     };
 
+    mockRetrieval = { retrieve: jest.fn().mockResolvedValue([]) };
     service = new ProposalsService(
       mockProposalRepo as never,
       mockCommitRepo as never,
@@ -258,10 +264,91 @@ describe('ProposalsService', () => {
       mockAuditService as never,
       mockOutboxService as never,
       mockDataSource as never,
+      mockRetrieval as never,
+      new ContextAssembler(),
     );
   });
 
   describe('generateTaskProposal', () => {
+    it('reports failed retrieval without generating or persisting any draft or task', async () => {
+      mockReqRepo.findOne.mockResolvedValue(mockRequirement);
+      mockRetrieval.retrieve.mockRejectedValue(new Error('private provider detail'));
+      const generate = jest.spyOn(mockLlmProvider, 'generateStructuredOutput');
+      await expect(
+        service.generateTaskProposal(mockProjectId, mockUserId, mockRequirement.id),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(generate).not.toHaveBeenCalled();
+      expect(mockProposalRepo.save).not.toHaveBeenCalled();
+    });
+    it('retrieves only project documents and retains server-owned sources without creating tasks', async () => {
+      mockReqRepo.findOne.mockResolvedValue(mockRequirement);
+      const source = {
+        sourceId: '77777777-7777-4777-8777-777777777777',
+        chunkId: '88888888-8888-4888-8888-888888888888',
+        sourceType: KnowledgeSourceType.DOCUMENT,
+        title: 'SRS',
+        revision: 3,
+        locator: 'Page 4',
+        snippet: 'Short excerpt',
+        text: 'Only selected reviewed drafts are persisted.',
+        score: 1,
+      };
+      mockRetrieval.retrieve.mockResolvedValue([source]);
+      const generate = jest.spyOn(mockLlmProvider, 'generateStructuredOutput');
+      const result = await service.generateTaskProposal(
+        mockProjectId,
+        mockUserId,
+        mockRequirement.id,
+      );
+      expect(mockRetrieval.retrieve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: mockProjectId,
+          actorId: mockUserId,
+          filters: { sourceType: KnowledgeSourceType.DOCUMENT },
+        }),
+      );
+      expect(generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemPrompt: expect.stringContaining(source.text),
+        }),
+      );
+      expect(result.draftJson.sourceReferences).toEqual([
+        {
+          sourceId: source.sourceId,
+          chunkId: source.chunkId,
+          sourceType: source.sourceType,
+          title: source.title,
+          revision: source.revision,
+          locator: source.locator,
+        },
+      ]);
+      expect(mockTaskRepo.save).not.toHaveBeenCalled();
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a nonmember before retrieval or generation', async () => {
+      mockMemberRepo.findOne.mockResolvedValue(null);
+      const generate = jest.spyOn(mockLlmProvider, 'generateStructuredOutput');
+      await expect(
+        service.generateTaskProposal(mockProjectId, mockUserId, mockRequirement.id),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRetrieval.retrieve).not.toHaveBeenCalled();
+      expect(generate).not.toHaveBeenCalled();
+    });
+
+    it('does not retrieve or generate for a requirement outside the requested project', async () => {
+      mockReqRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.generateTaskProposal(mockProjectId, mockUserId, mockRequirement.id),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockReqRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ projectId: mockProjectId, id: mockRequirement.id }),
+        }),
+      );
+      expect(mockRetrieval.retrieve).not.toHaveBeenCalled();
+    });
+
     it('should generate structured task proposals from a requirement', async () => {
       mockReqRepo.findOne.mockResolvedValue(mockRequirement);
 
@@ -494,6 +581,144 @@ describe('ProposalsService', () => {
   });
 
   describe('confirmProposal', () => {
+    const reference = {
+      sourceId: '77777777-7777-4777-8777-777777777777',
+      chunkId: '88888888-8888-4888-8888-888888888888',
+      sourceType: 'DOCUMENT',
+      title: 'SRS',
+      revision: 1,
+      locator: 'Page 4',
+    };
+
+    function pending() {
+      return {
+        id: 'prop-123',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        proposalType: ProposalType.TASK_PROPOSAL,
+        sourceEntityType: 'REQUIREMENT',
+        sourceEntityId: mockRequirement.id,
+        sourceRevision: mockRequirement.version,
+        draftJson: {
+          type: 'CREATE_TASKS',
+          items: [
+            {
+              itemId: 'one',
+              title: 'Reviewed task',
+              priority: Priority.HIGH,
+              sourceIds: [mockRequirement.id],
+            },
+          ],
+          sourceReferences: [reference],
+        },
+        version: 1,
+        status: ProposalStatus.PENDING,
+        expiresAt: new Date(Date.now() + 100000),
+        confirmedBy: null,
+        confirmedAt: null,
+        resultRecordIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as AIProposal;
+    }
+
+    it.each(['creator', 'document', 'selection', 'assignee'] as const)(
+      'rejects invalid %s without any domain write',
+      async (failure) => {
+        const proposal = pending();
+        if (failure === 'creator') proposal.userId = 'another-user';
+        if (failure === 'assignee')
+          Object.assign((proposal.draftJson.items as object[])[0]!, {
+            assigneeId: '99999999-9999-4999-8999-999999999999',
+          });
+        const manager = {
+          findOne: jest.fn((entity: unknown) =>
+            Promise.resolve(
+              entity === AIProposal
+                ? proposal
+                : entity === Requirement
+                  ? mockRequirement
+                  : entity === Document
+                    ? { revision: failure === 'document' ? 2 : 1 }
+                    : null,
+            ),
+          ),
+          query: jest.fn().mockResolvedValue([{ max: 0 }]),
+          create: jest.fn(),
+          save: jest.fn(),
+        };
+        mockDataSource.transaction.mockImplementation(
+          (callback: (value: unknown) => Promise<unknown>) => callback(manager),
+        );
+        await expect(
+          service.confirmProposal(
+            mockProjectId,
+            mockActor,
+            proposal.id,
+            {
+              version: 1,
+              selectedItemIds: [failure === 'selection' ? 'unknown' : 'one'],
+            },
+            'negative-test',
+          ),
+        ).rejects.toThrow(
+          failure === 'creator'
+            ? ForbiddenException
+            : failure === 'document'
+              ? ConflictException
+              : BadRequestException,
+        );
+        expect(manager.save).not.toHaveBeenCalled();
+        expect(mockOutboxService.emit).not.toHaveBeenCalled();
+      },
+    );
+
+    it('preserves trusted document references during edits and creates no tasks', async () => {
+      const proposal = pending();
+      mockProposalRepo.findOne.mockResolvedValue(proposal);
+      const result = await service.updateProposal(mockProjectId, mockUserId, proposal.id, {
+        version: 1,
+        draftJson: {
+          ...proposal.draftJson,
+          sourceReferences: [{ ...reference, title: 'Forged source' }],
+        },
+      });
+      expect(result.draftJson.sourceReferences).toEqual([reference]);
+      expect(mockTaskRepo.save).not.toHaveBeenCalled();
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it.each(['blank title', 'invalid date', 'duplicate IDs'])(
+      'rejects %s as a validation error rather than a provider failure',
+      async (invalid) => {
+        const proposal = pending();
+        mockProposalRepo.findOne.mockResolvedValue(proposal);
+        await expect(
+          service.updateProposal(mockProjectId, mockUserId, proposal.id, {
+            version: 1,
+            draftJson: {
+              ...proposal.draftJson,
+              items:
+                invalid === 'duplicate IDs'
+                  ? [
+                      { itemId: 'one', title: 'First' },
+                      { itemId: 'one', title: 'Second' },
+                    ]
+                  : [
+                      {
+                        itemId: 'one',
+                        title: invalid === 'blank title' ? '  ' : 'Valid title',
+                        priority: Priority.HIGH,
+                        dueDate: invalid === 'invalid date' ? '2026-02-30' : null,
+                      },
+                    ],
+            },
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(mockProposalRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
     it('should replay result on identical idempotency key', async () => {
       const existingCommit: ProposalCommit = {
         id: 'commit-1',
@@ -602,93 +827,97 @@ describe('ProposalsService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should transactionally create tasks and commit proposal on valid confirmation', async () => {
-      const pendingProposal = {
-        id: 'prop-123',
-        projectId: mockProjectId,
-        userId: mockUserId,
-        proposalType: ProposalType.TASK_PROPOSAL,
-        sourceEntityType: 'REQUIREMENT',
-        sourceEntityId: mockRequirement.id,
-        sourceRevision: 2,
-        draftJson: {
-          type: 'CREATE_TASKS',
-          items: [
-            {
-              itemId: 'draft-item-1',
-              title: 'Implement feature backend',
-              description: 'REST API implementation',
-              priority: Priority.HIGH,
-              sourceIds: [mockRequirement.id],
-            },
-          ],
-        },
-        version: 1,
-        status: ProposalStatus.PENDING,
-        expiresAt: new Date(Date.now() + 100000),
-        confirmedBy: null,
-        confirmedAt: null,
-        resultRecordIds: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as AIProposal;
+    it.each([null, '44444444-4444-4444-4444-444444444444'])(
+      'creates selected tasks retaining source meeting %s and commits the proposal',
+      async (sourceMeetingId) => {
+        const pendingProposal = {
+          id: 'prop-123',
+          projectId: mockProjectId,
+          userId: mockUserId,
+          proposalType: ProposalType.TASK_PROPOSAL,
+          sourceEntityType: 'REQUIREMENT',
+          sourceEntityId: mockRequirement.id,
+          sourceRevision: 2,
+          draftJson: {
+            type: 'CREATE_TASKS',
+            items: [
+              {
+                itemId: 'draft-item-1',
+                title: 'Implement feature backend',
+                description: 'REST API implementation',
+                priority: Priority.HIGH,
+                sourceIds: [mockRequirement.id],
+              },
+            ],
+          },
+          version: 1,
+          status: ProposalStatus.PENDING,
+          expiresAt: new Date(Date.now() + 100000),
+          confirmedBy: null,
+          confirmedAt: null,
+          resultRecordIds: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as AIProposal;
 
-      let capturedTask: Task | null = null;
-      let capturedCommit: ProposalCommit | null = null;
+        let capturedTask: Task | null = null;
+        let capturedCommit: ProposalCommit | null = null;
 
-      mockDataSource.transaction = jest.fn(
-        async (
-          cb: (manager: {
-            findOne: (entityClass: unknown) => Promise<unknown>;
-            query: () => Promise<unknown>;
-            create: (entityClass: unknown, plainObject: unknown) => unknown;
-            save: (entityClass: unknown, plainObject: unknown) => Promise<unknown>;
-          }) => Promise<unknown>,
-        ) => {
-          const mockManager = {
-            findOne: jest.fn((entityClass: unknown) => {
-              if (entityClass === AIProposal) return Promise.resolve(pendingProposal);
-              if (entityClass === Requirement) return Promise.resolve(mockRequirement);
-              return Promise.resolve(null);
-            }),
-            query: jest.fn().mockResolvedValue([{ max: 5 }]),
-            create: jest.fn((_entityClass: unknown, plainObject: unknown) => ({
-              id: 'gen-uuid',
-              ...(plainObject as object),
-            })),
-            save: jest.fn((entityClass: unknown, plainObject: unknown) => {
-              if (entityClass === Task) capturedTask = plainObject as Task;
-              if (entityClass === ProposalCommit) capturedCommit = plainObject as ProposalCommit;
-              return Promise.resolve({ id: 'saved-id', ...(plainObject as object) });
-            }),
-          };
-          return cb(mockManager);
-        },
-      );
+        mockDataSource.transaction = jest.fn(
+          async (
+            cb: (manager: {
+              findOne: (entityClass: unknown) => Promise<unknown>;
+              query: () => Promise<unknown>;
+              create: (entityClass: unknown, plainObject: unknown) => unknown;
+              save: (entityClass: unknown, plainObject: unknown) => Promise<unknown>;
+            }) => Promise<unknown>,
+          ) => {
+            const mockManager = {
+              findOne: jest.fn((entityClass: unknown) => {
+                if (entityClass === AIProposal) return Promise.resolve(pendingProposal);
+                if (entityClass === Requirement)
+                  return Promise.resolve({ ...mockRequirement, sourceMeetingId });
+                return Promise.resolve(null);
+              }),
+              query: jest.fn().mockResolvedValue([{ max: 5 }]),
+              create: jest.fn((_entityClass: unknown, plainObject: unknown) => ({
+                id: 'gen-uuid',
+                ...(plainObject as object),
+              })),
+              save: jest.fn((entityClass: unknown, plainObject: unknown) => {
+                if (entityClass === Task) capturedTask = plainObject as Task;
+                if (entityClass === ProposalCommit) capturedCommit = plainObject as ProposalCommit;
+                return Promise.resolve({ id: 'saved-id', ...(plainObject as object) });
+              }),
+            };
+            return cb(mockManager);
+          },
+        );
 
-      const res = await service.confirmProposal(
-        mockProjectId,
-        mockActor,
-        'prop-123',
-        { version: 1 },
-        'key-create-task',
-      );
+        const res = await service.confirmProposal(
+          mockProjectId,
+          mockActor,
+          'prop-123',
+          { version: 1 },
+          'key-create-task',
+        );
 
-      expect(res.resultRecordIds).toHaveLength(1);
-      expect(res.resultRecordIds[0]!.entityType).toBe('TASK');
-      expect(res.resultRecordIds[0]!.key).toBe('AIW-TSK-6'); // nextNumber was 6
-      expect(capturedTask).not.toBeNull();
-      expect(capturedTask!.number).toBe(6);
-      expect(capturedTask!.title).toBe('Implement feature backend');
-      expect(capturedTask!.requirementId).toBe(mockRequirement.id);
-      expect(capturedTask!.sourceMeetingId).toBeNull();
-      expect(capturedCommit).not.toBeNull();
-      expect(capturedCommit!.idempotencyKey).toBe('key-create-task');
-      expect(mockOutboxService.emit).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ eventType: 'TASK_CREATED' }),
-      );
-    });
+        expect(res.resultRecordIds).toHaveLength(1);
+        expect(res.resultRecordIds[0]!.entityType).toBe('TASK');
+        expect(res.resultRecordIds[0]!.key).toBe('AIW-TASK-6'); // nextNumber was 6
+        expect(capturedTask).not.toBeNull();
+        expect(capturedTask!.number).toBe(6);
+        expect(capturedTask!.title).toBe('Implement feature backend');
+        expect(capturedTask!.requirementId).toBe(mockRequirement.id);
+        expect(capturedTask!.sourceMeetingId).toBe(sourceMeetingId);
+        expect(capturedCommit).not.toBeNull();
+        expect(capturedCommit!.idempotencyKey).toBe('key-create-task');
+        expect(mockOutboxService.emit).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ eventType: 'TASK_CREATED' }),
+        );
+      },
+    );
 
     it('should transactionally create tasks from architectural decision proposal on valid confirmation', async () => {
       const pendingDecisionProposal = {
@@ -766,7 +995,7 @@ describe('ProposalsService', () => {
 
       expect(res.resultRecordIds).toHaveLength(1);
       expect(res.resultRecordIds[0]!.entityType).toBe('TASK');
-      expect(res.resultRecordIds[0]!.key).toBe('AIW-TSK-9'); // nextNumber was 9
+      expect(res.resultRecordIds[0]!.key).toBe('AIW-TASK-9'); // nextNumber was 9
       expect(capturedTask).not.toBeNull();
       expect(capturedTask!.number).toBe(9);
       expect(capturedTask!.title).toBe('Setup PostgreSQL pgvector extension');
@@ -924,6 +1153,116 @@ describe('ProposalsService', () => {
 
       expect(capturedMeetingDecision).not.toBeNull();
       expect(capturedMeetingDecision!.sourceMeetingId).toBe(mockMeeting.id);
+    });
+
+    it('should apply only a meeting summary when the explicit selection is empty', async () => {
+      const meetingProposal = {
+        id: 'prop-meeting-123',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        proposalType: ProposalType.MEETING_ANALYSIS,
+        sourceEntityType: 'MEETING',
+        sourceEntityId: mockMeeting.id,
+        sourceRevision: 3,
+        draftJson: {
+          type: 'MEETING_ANALYSIS',
+          summary: 'Approved sprint goals and architecture direction.',
+          decisions: [
+            {
+              itemId: 'dec-item-1',
+              title: 'Adopt vector embeddings',
+              decisionText: 'Use 1536 dim embeddings',
+              status: 'PROPOSED',
+            },
+          ],
+          requirements: [
+            {
+              itemId: 'req-item-1',
+              title: 'Vector Search Pipeline',
+              description: 'Implement hybrid search pipeline',
+              priority: Priority.HIGH,
+            },
+          ],
+          actionItems: [
+            {
+              itemId: 'action-item-1',
+              title: 'Deploy pgvector extension in staging',
+              description: 'Run migration and verify extension',
+              priority: Priority.URGENT,
+              dueDate: '2026-09-30',
+            },
+          ],
+        },
+        version: 1,
+        status: ProposalStatus.PENDING,
+        expiresAt: new Date(Date.now() + 100000),
+        confirmedBy: null,
+        confirmedAt: null,
+        resultRecordIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as unknown as AIProposal;
+
+      let capturedMeetingTask: Task | null = null;
+      let capturedMeetingDecision: Decision | null = null;
+      let capturedMeetingReq: Requirement | null = null;
+
+      mockDataSource.transaction = jest.fn(
+        async (
+          cb: (manager: {
+            findOne: (entityClass: unknown) => Promise<unknown>;
+            query: () => Promise<unknown>;
+            create: (entityClass: unknown, plainObject: unknown) => unknown;
+            save: (entityClass: unknown, plainObject: unknown) => Promise<unknown>;
+            createQueryBuilder: () => unknown;
+          }) => Promise<unknown>,
+        ) => {
+          const mockManager = {
+            findOne: jest.fn((entityClass: unknown) => {
+              if (entityClass === AIProposal) return Promise.resolve(meetingProposal);
+              if (entityClass === Meeting) return Promise.resolve(mockMeeting);
+              return Promise.resolve(null);
+            }),
+            query: jest.fn().mockResolvedValue([{ max: 1 }]),
+            create: jest.fn((_entityClass: unknown, plainObject: unknown) => ({
+              id: 'gen-meeting-record-id',
+              ...(plainObject as object),
+            })),
+            save: jest.fn((entityClass: unknown, plainObject: unknown) => {
+              if (entityClass === Task) capturedMeetingTask = plainObject as Task;
+              if (entityClass === Requirement) capturedMeetingReq = plainObject as Requirement;
+              if (entityClass === Decision) {
+                capturedMeetingDecision = plainObject as Decision;
+              }
+              return Promise.resolve({ id: 'saved-id', ...(plainObject as object) });
+            }),
+            createQueryBuilder: jest.fn(() => ({
+              innerJoinAndSelect: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              andWhere: jest.fn().mockReturnThis(),
+              getOne: jest.fn().mockResolvedValue(null),
+            })),
+          };
+          return cb(mockManager);
+        },
+      );
+
+      const res = await service.confirmProposal(
+        mockProjectId,
+        mockActor,
+        'prop-meeting-123',
+        { version: 1, selectedItemIds: [], includeSummary: true },
+        'key-summary-only',
+      );
+
+      expect(res.resultRecordIds.some((r) => r.entityType === 'TASK')).toBe(false);
+      expect(res.resultRecordIds.some((r) => r.entityType === 'REQUIREMENT')).toBe(false);
+      expect(res.resultRecordIds.some((r) => r.entityType === 'DECISION')).toBe(false);
+      expect(res.resultRecordIds.some((r) => r.entityType === 'MEETING_SUMMARY')).toBe(true);
+
+      expect(capturedMeetingTask).toBeNull();
+      expect(capturedMeetingReq).toBeNull();
+      expect(capturedMeetingDecision).toBeNull();
     });
 
     it('should reject meeting analysis confirmation if meeting transcriptVersion was updated', async () => {

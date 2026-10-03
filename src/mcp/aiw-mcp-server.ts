@@ -26,14 +26,16 @@ export class AiwMcpServer {
 
     this.registerResources();
     this.registerTools();
+    this.registerProposalTools();
   }
 
-  private async request<T = any>(
+  private async request<T = Record<string, unknown>>(
     path: string,
     options: {
       method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
-      body?: any;
+      body?: unknown;
       query?: Record<string, string | number | undefined>;
+      headers?: Record<string, string>;
     } = {},
   ): Promise<T> {
     const url = new URL(`${this.apiUrl}${path.startsWith('/') ? path : `/${path}`}`);
@@ -49,6 +51,7 @@ export class AiwMcpServer {
       Authorization: `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...options.headers,
     };
 
     const res = await fetch(url.toString(), {
@@ -58,13 +61,16 @@ export class AiwMcpServer {
     });
 
     if (!res.ok) {
-      let errorBody: any;
+      let errorBody: Record<string, unknown>;
       try {
-        errorBody = await res.json();
+        errorBody = this.recordData(await res.json());
       } catch {
         errorBody = { message: res.statusText };
       }
-      const msg = errorBody.message || errorBody.error || `HTTP error ${res.status}`;
+      const msg =
+        this.recordData(errorBody.error).message ||
+        errorBody.message ||
+        (typeof errorBody.error === 'string' ? errorBody.error : `HTTP error ${res.status}`);
       throw new Error(`AI Workspace API error (${res.status}): ${msg}`);
     }
 
@@ -72,7 +78,28 @@ export class AiwMcpServer {
       return {} as T;
     }
 
-    return (await res.json()) as T;
+    const responseText = await res.text();
+    return (responseText.trim() ? JSON.parse(responseText) : null) as T;
+  }
+
+  private recordData(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const record = value as Record<string, unknown>;
+    if (record.data && typeof record.data === 'object' && !Array.isArray(record.data)) {
+      return record.data as Record<string, unknown>;
+    }
+    return record;
+  }
+
+  private listData(value: unknown): Array<Record<string, unknown>> {
+    const record = this.recordData(value);
+    const items = Array.isArray(value) ? value : (record.data ?? record.items ?? []);
+    return Array.isArray(items)
+      ? items.filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === 'object' && !Array.isArray(item),
+        )
+      : [];
   }
 
   private async resolveProjectId(projectKeyOrId?: string): Promise<string> {
@@ -82,7 +109,7 @@ export class AiwMcpServer {
       if (projects.length === 0) {
         throw new Error('No accessible projects found for your user account.');
       }
-      return projects[0].id;
+      return projects[0]!.id;
     }
 
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -113,9 +140,16 @@ export class AiwMcpServer {
     return matched.id;
   }
 
-  private async listProjectsData(): Promise<any[]> {
+  private async listProjectsData(): Promise<
+    Array<Record<string, unknown> & { id: string; key: string; name: string }>
+  > {
     const res = await this.request('/projects');
-    const items = res.data || res.items || res;
+    const items = this.listData(res).filter(
+      (item): item is Record<string, unknown> & { id: string; key: string; name: string } =>
+        typeof item.id === 'string' &&
+        typeof item.key === 'string' &&
+        typeof item.name === 'string',
+    );
     if (Array.isArray(items)) {
       for (const p of items) {
         if (p.key && p.id) {
@@ -129,7 +163,7 @@ export class AiwMcpServer {
   }
 
   private extractNumberFromKey(keyOrId: string, prefix: string): number | null {
-    const regex = new RegExp(`(?:[A-Z0-9]+-${prefix}-)?(\\d+)`, 'i');
+    const regex = new RegExp(`^(?:(?:[A-Z][A-Z0-9]*-)?${prefix}-)?(\\d+)$`, 'i');
     const match = keyOrId.match(regex);
     if (match && match[1]) {
       return parseInt(match[1], 10);
@@ -137,21 +171,24 @@ export class AiwMcpServer {
     return null;
   }
 
-  private async resolveTask(projectId: string, taskKeyOrId: string): Promise<any> {
+  private async resolveTask(
+    projectId: string,
+    taskKeyOrId: string,
+  ): Promise<Record<string, unknown>> {
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_REGEX.test(taskKeyOrId)) {
       const res = await this.request(`/projects/${projectId}/tasks/${taskKeyOrId}`);
-      return res.data || res;
+      return this.recordData(res);
     }
 
-    const num = this.extractNumberFromKey(taskKeyOrId, 'TSK');
+    const num = this.extractNumberFromKey(taskKeyOrId, '(?:TSK|TASK)');
     if (num !== null) {
       const listRes = await this.request(`/projects/${projectId}/tasks`, {
         query: { number: num, pageSize: 1 },
       });
-      const tasks = listRes.data || listRes.items || [];
+      const tasks = this.listData(listRes);
       if (tasks.length > 0) {
-        return tasks[0];
+        return tasks[0]!;
       }
     }
 
@@ -160,11 +197,14 @@ export class AiwMcpServer {
     );
   }
 
-  private async resolveDecision(projectId: string, decKeyOrId: string): Promise<any> {
+  private async resolveDecision(
+    projectId: string,
+    decKeyOrId: string,
+  ): Promise<Record<string, unknown>> {
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_REGEX.test(decKeyOrId)) {
       const res = await this.request(`/projects/${projectId}/decisions/${decKeyOrId}`);
-      return res.data || res;
+      return this.recordData(res);
     }
 
     const num = this.extractNumberFromKey(decKeyOrId, 'DEC');
@@ -172,9 +212,9 @@ export class AiwMcpServer {
       const listRes = await this.request(`/projects/${projectId}/decisions`, {
         query: { number: num, pageSize: 1 },
       });
-      const decs = listRes.data || listRes.items || [];
+      const decs = this.listData(listRes);
       if (decs.length > 0) {
-        return decs[0];
+        return decs[0]!;
       }
     }
 
@@ -183,11 +223,14 @@ export class AiwMcpServer {
     );
   }
 
-  private async resolveRequirement(projectId: string, reqKeyOrId: string): Promise<any> {
+  private async resolveRequirement(
+    projectId: string,
+    reqKeyOrId: string,
+  ): Promise<Record<string, unknown>> {
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_REGEX.test(reqKeyOrId)) {
       const res = await this.request(`/projects/${projectId}/requirements/${reqKeyOrId}`);
-      return res.data || res;
+      return this.recordData(res);
     }
 
     const num = this.extractNumberFromKey(reqKeyOrId, 'REQ');
@@ -195,9 +238,9 @@ export class AiwMcpServer {
       const listRes = await this.request(`/projects/${projectId}/requirements`, {
         query: { number: num, pageSize: 1 },
       });
-      const items = listRes.data || listRes.items || [];
+      const items = this.listData(listRes);
       if (items.length > 0) {
-        return items[0];
+        return items[0]!;
       }
     }
 
@@ -206,19 +249,22 @@ export class AiwMcpServer {
     );
   }
 
-  private async resolveMeeting(projectId: string, meetingKeyOrId: string): Promise<any> {
+  private async resolveMeeting(
+    projectId: string,
+    meetingKeyOrId: string,
+  ): Promise<Record<string, unknown>> {
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_REGEX.test(meetingKeyOrId)) {
       const res = await this.request(`/projects/${projectId}/meetings/${meetingKeyOrId}`);
-      return res.data || res;
+      return this.recordData(res);
     }
 
     const listRes = await this.request(`/projects/${projectId}/meetings`, {
       query: { search: meetingKeyOrId, pageSize: 5 },
     });
-    const items = listRes.data || listRes.items || [];
+    const items = this.listData(listRes);
     if (items.length > 0) {
-      return items[0];
+      return items[0]!;
     }
 
     throw new Error(
@@ -226,23 +272,159 @@ export class AiwMcpServer {
     );
   }
 
-  private async resolveDocument(projectId: string, docKeyOrId: string): Promise<any> {
+  private async resolveDocument(
+    projectId: string,
+    docKeyOrId: string,
+  ): Promise<Record<string, unknown>> {
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_REGEX.test(docKeyOrId)) {
       const res = await this.request(`/projects/${projectId}/documents/${docKeyOrId}`);
-      return res.data || res;
+      return this.recordData(res);
     }
 
     const listRes = await this.request(`/projects/${projectId}/documents`, {
       query: { search: docKeyOrId, pageSize: 5 },
     });
-    const items = listRes.data || listRes.items || [];
+    const items = this.listData(listRes);
     if (items.length > 0) {
-      return items[0];
+      return items[0]!;
     }
 
     throw new Error(
       `Document "${docKeyOrId}" not found in project. Verify the document UUID or title.`,
+    );
+  }
+
+  private registerProposalTools(): void {
+    const project = { projectKeyOrId: z.string().optional().describe('Project key or UUID.') };
+    const proposal = { ...project, proposalId: z.string().uuid() };
+    const result = (value: unknown) => ({
+      content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
+    });
+    this.server.tool(
+      'generate_task_proposal',
+      'Generate editable task drafts from a requirement. Creates no tasks; review before confirmation.',
+      { ...project, requirementKeyOrId: z.string() },
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        const source = await this.resolveRequirement(projectId, args.requirementKeyOrId);
+        return result(
+          await this.request(`/projects/${projectId}/ai/requirements/${source.id}/task-proposals`, {
+            method: 'POST',
+          }),
+        );
+      },
+    );
+    this.server.tool(
+      'generate_decision_task_proposal',
+      'Generate editable task drafts from a decision. Creates no tasks; review before confirmation.',
+      { ...project, decisionKeyOrId: z.string() },
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        const source = await this.resolveDecision(projectId, args.decisionKeyOrId);
+        return result(
+          await this.request(`/projects/${projectId}/ai/decisions/${source.id}/task-proposals`, {
+            method: 'POST',
+          }),
+        );
+      },
+    );
+    this.server.tool(
+      'generate_meeting_analysis',
+      'Generate summary, requirement, decision and action drafts from meeting notes. Creates no domain records.',
+      { ...project, meetingKeyOrId: z.string() },
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        const source = await this.resolveMeeting(projectId, args.meetingKeyOrId);
+        return result(
+          await this.request(`/projects/${projectId}/ai/meetings/${source.id}/analysis-proposals`, {
+            method: 'POST',
+          }),
+        );
+      },
+    );
+    this.server.tool(
+      'list_ai_proposals',
+      "List the authenticated user's proposals in the authorized project.",
+      { ...project, status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED', 'EXPIRED']).optional() },
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        return result(
+          await this.request(`/projects/${projectId}/ai/proposals`, {
+            query: { status: args.status },
+          }),
+        );
+      },
+    );
+    this.server.tool(
+      'get_ai_proposal',
+      'Read a private proposal for review, including draft, version and source revision.',
+      proposal,
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        return result(await this.request(`/projects/${projectId}/ai/proposals/${args.proposalId}`));
+      },
+    );
+    this.server.tool(
+      'update_ai_proposal',
+      'Save reviewed edits to a pending draft. Does not create domain records.',
+      {
+        ...proposal,
+        version: z.number().int().min(1),
+        draftJson: z.record(z.string(), z.unknown()),
+      },
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        return result(
+          await this.request(`/projects/${projectId}/ai/proposals/${args.proposalId}`, {
+            method: 'PATCH',
+            body: { version: args.version, draftJson: args.draftJson },
+          }),
+        );
+      },
+    );
+    this.server.tool(
+      'confirm_ai_proposal',
+      'Persist explicitly reviewed and user-authorized selected draft items. Requires current version and a stable idempotency key; reuse the key when retrying.',
+      {
+        ...proposal,
+        version: z.number().int().min(1),
+        selectedItemIds: z.array(z.string().min(1)),
+        includeSummary: z.boolean().default(false),
+        idempotencyKey: z.string().min(1).max(200),
+        userConfirmed: z
+          .literal(true)
+          .describe('Only true after the user authorizes the reviewed changes.'),
+      },
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        if (!args.selectedItemIds.length && !args.includeSummary)
+          throw new Error('Select at least one item or include the meeting summary.');
+        return result(
+          await this.request(`/projects/${projectId}/ai/proposals/${args.proposalId}/confirm`, {
+            method: 'POST',
+            headers: { 'Idempotency-Key': args.idempotencyKey },
+            body: {
+              version: args.version,
+              selectedItemIds: args.selectedItemIds,
+              includeSummary: args.includeSummary,
+            },
+          }),
+        );
+      },
+    );
+    this.server.tool(
+      'reject_ai_proposal',
+      'Reject a pending draft without creating domain records.',
+      proposal,
+      async (args) => {
+        const projectId = await this.resolveProjectId(args.projectKeyOrId);
+        return result(
+          await this.request(`/projects/${projectId}/ai/proposals/${args.proposalId}/reject`, {
+            method: 'POST',
+          }),
+        );
+      },
     );
   }
 
@@ -413,10 +595,11 @@ export class AiwMcpServer {
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
         const res = await this.request(`/projects/${projectId}/members`);
-        const members = res.data || res.items || [];
-        const lines = members.map((m: any) => {
-          const name = m.user?.displayName || m.user?.email || 'Unknown User';
-          return `- ${name} (${m.user?.email || 'N/A'}) — Role: ${m.accessRole}`;
+        const members = this.listData(res);
+        const lines = members.map((m) => {
+          const name =
+            this.recordData(m.user).displayName || this.recordData(m.user).email || 'Unknown User';
+          return `- ${name} (${this.recordData(m.user).email || 'N/A'}) — Role: ${m.accessRole}`;
         });
         const outputText =
           lines.length > 0
@@ -470,11 +653,14 @@ export class AiwMcpServer {
         const res = await this.request(`/projects/${projectId}/activity`, {
           query: { pageSize: args.limit || 20 },
         });
-        const items = res.data || res.items || [];
-        const lines = items.map((a: any) => {
-          const actor = a.actor?.displayName || a.actor?.email || 'System';
-          const time = a.createdAt ? new Date(a.createdAt).toISOString() : '';
-          const title = a.metadata?.title ? ` "${a.metadata.title}"` : '';
+        const items = this.listData(res);
+        const lines = items.map((a) => {
+          const actor =
+            this.recordData(a.actor).displayName || this.recordData(a.actor).email || 'System';
+          const time = a.createdAt ? new Date(String(a.createdAt)).toISOString() : '';
+          const title = this.recordData(a.metadata).title
+            ? ` "${this.recordData(a.metadata).title}"`
+            : '';
           return `[${time}] ${actor}: ${a.action} (${a.entityType}${title})`;
         });
         const outputText =
@@ -526,8 +712,8 @@ export class AiwMcpServer {
             pageSize: args.limit || 50,
           },
         });
-        const reqs = res.data || res.items || [];
-        const lines = reqs.map((r: any) => {
+        const reqs = this.listData(res);
+        const lines = reqs.map((r) => {
           const key = r.displayKey || `REQ-${r.number}`;
           return `- [${key}] (${r.status} | ${r.priority}) "${r.title}"`;
         });
@@ -591,7 +777,7 @@ export class AiwMcpServer {
             priority: args.priority || 'MEDIUM',
           },
         });
-        const created = res.data || res;
+        const created = this.recordData(res);
         const key = created.displayKey || `REQ-${created.number}`;
         return {
           content: [
@@ -629,7 +815,7 @@ export class AiwMcpServer {
         if (args.comment && args.comment.trim()) {
           const dateStr = new Date().toISOString().split('T')[0];
           updatedDescription =
-            (reqItem.description || '').trim() +
+            String(reqItem.description || '').trim() +
             `\n\n> **[${dateStr} Status Update]**: ${args.comment.trim()}`;
         }
 
@@ -641,7 +827,7 @@ export class AiwMcpServer {
             description: updatedDescription,
           },
         });
-        const updated = res.data || res;
+        const updated = this.recordData(res);
         const key = updated.displayKey || `REQ-${updated.number}`;
         return {
           content: [
@@ -688,10 +874,13 @@ export class AiwMcpServer {
           },
         });
 
-        const tasks = res.data || res.items || [];
-        const lines = tasks.map((t: any) => {
-          const key = t.key || `TSK-${t.number}`;
-          const assignee = t.assignee?.displayName || t.assignee?.email || 'Unassigned';
+        const tasks = this.listData(res);
+        const lines = tasks.map((t) => {
+          const key = t.displayKey || t.key || `TASK-${t.number}`;
+          const assignee =
+            this.recordData(t.assignee).displayName ||
+            this.recordData(t.assignee).email ||
+            'Unassigned';
           return `- [${key}] (${t.status} | ${t.priority}) "${t.title}" — Assignee: ${assignee}`;
         });
 
@@ -719,11 +908,14 @@ export class AiwMcpServer {
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
         const task = await this.resolveTask(projectId, args.taskKeyOrId);
+        const details = this.recordData(
+          await this.request(`/projects/${projectId}/tasks/${task.id}`),
+        );
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(task, null, 2),
+              text: JSON.stringify(details, null, 2),
             },
           ],
         };
@@ -759,10 +951,10 @@ export class AiwMcpServer {
         if (args.comment && args.comment.trim()) {
           const dateStr = new Date().toISOString().split('T')[0];
           const logEntry = `\n\n> **[${dateStr} Update]**: ${args.comment.trim()}`;
-          updatedDescription = (task.description || '').trim() + logEntry;
+          updatedDescription = String(task.description || '').trim() + logEntry;
         }
 
-        const updatePayload: any = {
+        const updatePayload: Record<string, unknown> = {
           version: task.version,
           status: args.status,
           blockedReason: args.status === 'BLOCKED' ? args.blockedReason || 'Blocked' : null,
@@ -774,8 +966,8 @@ export class AiwMcpServer {
           body: updatePayload,
         });
 
-        const updated = res.data || res;
-        const taskKey = updated.key || `TSK-${updated.number}`;
+        const updated = this.recordData(res);
+        const taskKey = updated.displayKey || updated.key || `TASK-${updated.number}`;
 
         return {
           content: [
@@ -821,8 +1013,8 @@ export class AiwMcpServer {
           },
         });
 
-        const created = res.data || res;
-        const taskKey = created.key || `TSK-${created.number}`;
+        const created = this.recordData(res);
+        const taskKey = created.displayKey || created.key || `TASK-${created.number}`;
 
         return {
           content: [
@@ -863,8 +1055,8 @@ export class AiwMcpServer {
           },
         });
 
-        const decs = res.data || res.items || [];
-        const lines = decs.map((d: any) => {
+        const decs = this.listData(res);
+        const lines = decs.map((d) => {
           const key = d.key || `DEC-${d.number}`;
           return `- [${key}] (${d.status}) "${d.title}"\n  Outcome: ${d.decisionText || d.outcome || 'N/A'}`;
         });
@@ -923,7 +1115,7 @@ export class AiwMcpServer {
           },
         });
 
-        const created = res.data || res;
+        const created = this.recordData(res);
         const decKey = created.key || `DEC-${created.number}`;
 
         return {
@@ -963,9 +1155,9 @@ export class AiwMcpServer {
             pageSize: args.limit || 20,
           },
         });
-        const meetings = res.data || res.items || [];
-        const lines = meetings.map((m: any) => {
-          const start = m.startsAt ? new Date(m.startsAt).toISOString() : 'TBD';
+        const meetings = this.listData(res);
+        const lines = meetings.map((m) => {
+          const start = m.startsAt ? new Date(String(m.startsAt)).toISOString() : 'TBD';
           return `- [${m.id}] (${m.status}) "${m.title}" — Starts: ${start}`;
         });
         const outputText =
@@ -1021,7 +1213,7 @@ export class AiwMcpServer {
             transcriptText: args.transcriptText,
           },
         });
-        const created = res.data || res;
+        const created = this.recordData(res);
         return {
           content: [
             {
@@ -1062,9 +1254,9 @@ export class AiwMcpServer {
             pageSize: args.limit || 50,
           },
         });
-        const docs = res.data || res.items || [];
-        const lines = docs.map((d: any) => {
-          const sizeKb = d.sizeBytes ? Math.round(d.sizeBytes / 1024) : 0;
+        const docs = this.listData(res);
+        const lines = docs.map((d) => {
+          const sizeKb = d.sizeBytes ? Math.round(Number(d.sizeBytes) / 1024) : 0;
           return `- [${d.id}] "${d.title}" (${d.mimeType || 'unknown'}, ${sizeKb} KB) — Version: ${d.version || 1}`;
         });
         const outputText =
@@ -1125,7 +1317,7 @@ export class AiwMcpServer {
           },
         });
 
-        const results = res.data || res.items || [];
+        const results = this.listData(res);
         return {
           content: [
             {
@@ -1151,7 +1343,7 @@ export class AiwMcpServer {
       async (args) => {
         const projectId = await this.resolveProjectId(args.projectKeyOrId);
         const res = await this.request(`/projects/${projectId}/integrations/github`);
-        const conn = res.data || res;
+        const conn = this.recordData(res);
         if (!conn || !conn.repositoryOwner) {
           return {
             content: [{ type: 'text', text: 'No GitHub repository connected for this project.' }],
@@ -1181,13 +1373,13 @@ export class AiwMcpServer {
         const res = await this.request(`/projects/${projectId}/integrations/github/issues`, {
           query: {
             state: args.state && args.state !== 'all' ? args.state : undefined,
-            search: args.search,
+            q: args.search,
             limit: args.limit || 50,
           },
         });
-        const issues = res.items || res.data || [];
-        const lines = issues.map((i: any) => {
-          return `- [#${i.githubIssueNumber}] (${i.state}) "${i.title}" — ${i.githubUrl || ''}`;
+        const issues = this.listData(res);
+        const lines = issues.map((i) => {
+          return `- [#${i.issueNumber}] (${i.state}) "${i.title}" — ${i.htmlUrl || ''}`;
         });
         const outputText =
           lines.length > 0

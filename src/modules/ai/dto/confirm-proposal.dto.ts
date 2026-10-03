@@ -9,7 +9,7 @@ export class ConfirmProposalDto {
 
   @ApiPropertyOptional({
     description:
-      'Array of draft itemIds to confirm. If omitted or empty, all draft items are confirmed.',
+      'Array of draft itemIds to confirm. If omitted, all draft items are confirmed. An empty array selects no items.',
     type: [String],
     example: ['draft-item-1', 'draft-item-2'],
   })
