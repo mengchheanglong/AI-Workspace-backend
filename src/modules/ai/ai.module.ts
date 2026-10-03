@@ -16,6 +16,7 @@ import { Conversation } from './entities/conversation.entity';
 import { AIProposal } from './entities/proposal.entity';
 import { ProposalCommit } from './entities/proposal-commit.entity';
 import { DeepSeekLlmProvider, MockLlmProvider } from './llm';
+import { UnavailableLlmProvider } from './llm/unavailable-llm-provider';
 import { ProposalsController } from './proposals.controller';
 import { ProposalsService } from './proposals.service';
 import { RetrievalService } from './retrieval/retrieval.service';
@@ -54,7 +55,9 @@ import { RetrievalService } from './retrieval/retrieval.service';
         if (aiEnabled && apiKey) {
           return new DeepSeekLlmProvider(apiKey, baseUrl, model);
         }
-        return new MockLlmProvider();
+        return process.env.NODE_ENV === 'test'
+          ? new MockLlmProvider()
+          : new UnavailableLlmProvider();
       },
       inject: [ConfigService],
     },

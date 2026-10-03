@@ -23,6 +23,7 @@ export enum MessageStatus {
 }
 
 export interface CitationItem {
+  evidenceNumber?: number;
   chunkId: string;
   sourceId: string;
   sourceType: string;

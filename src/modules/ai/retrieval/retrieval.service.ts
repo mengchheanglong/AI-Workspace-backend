@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EmbeddingProvider } from '../../ingestion/embedding/embedding-provider.interface';
 import { KnowledgeSourceType } from '../../ingestion/entities';
@@ -22,6 +22,8 @@ export interface RetrievedEvidence {
   revision: number;
   locator: string;
   snippet: string;
+  /** Full permitted chunk for model context; snippets remain compact for search/citations. */
+  text?: string;
   score: number;
 }
 
@@ -78,10 +80,9 @@ export class RetrievalService {
     limit = 8,
   ): Promise<RetrievedEvidence[]> {
     if (!this.embeddingProvider) {
-      this.logger.warn(
-        'No embedding provider configured for semantic search; falling back to keyword.',
+      throw new ServiceUnavailableException(
+        'Semantic search requires a configured real embedding provider. Use keyword search instead.',
       );
-      return this.retrieveKeyword(projectId, query, sourceType, limit);
     }
 
     const [queryVec] = await this.embeddingProvider.embed([query]);
@@ -109,11 +110,13 @@ export class RetrievalService {
         AND s.status = 'INDEXED'
         AND s.deleted_at IS NULL
         AND c.index_version = s.active_index_version
+        AND c.embedding IS NOT NULL
+        AND c.embedding_model = $5
         AND ($3::varchar IS NULL OR s.source_type = $3)
       ORDER BY c.embedding <=> $1::vector ASC
       LIMIT $4;
       `,
-      [vectorParam, projectId, sourceType ?? null, limit],
+      [vectorParam, projectId, sourceType ?? null, limit, this.embeddingProvider.modelName],
     );
 
     return raw.map((row) => this.mapToEvidence(row, row.score_signal ?? 0));
@@ -127,6 +130,11 @@ export class RetrievalService {
   ): Promise<RetrievedEvidence[]> {
     const raw = await this.dataSource.query<RawChunkQueryResult[]>(
       `
+      WITH query_terms AS (
+        SELECT 
+          plainto_tsquery('english', $1) AS ptq,
+          NULLIF(replace(plainto_tsquery('english', $1)::text, '&', '|'), '') AS otq_text
+      )
       SELECT 
         c.id,
         c.knowledge_source_id,
@@ -138,16 +146,24 @@ export class RetrievalService {
         s.source_id,
         s.title,
         s.source_revision,
-        ts_rank_cd(to_tsvector('english', c.text), plainto_tsquery('english', $1)) AS score_signal
+        (
+          ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.ptq) * 2.0
+          + CASE 
+              WHEN q.otq_text IS NOT NULL THEN ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), to_tsquery('english', q.otq_text))
+              ELSE 0 
+            END
+        ) AS score_signal
       FROM knowledge_chunks c
       INNER JOIN knowledge_sources s ON s.id = c.knowledge_source_id
+      CROSS JOIN query_terms q
       WHERE s.project_id = $2
         AND s.status = 'INDEXED'
         AND s.deleted_at IS NULL
         AND c.index_version = s.active_index_version
         AND ($3::varchar IS NULL OR s.source_type = $3)
         AND (
-          to_tsvector('english', c.text) @@ plainto_tsquery('english', $1)
+          to_tsvector('english', s.title || ' ' || c.text) @@ q.ptq
+          OR (q.otq_text IS NOT NULL AND to_tsvector('english', s.title || ' ' || c.text) @@ to_tsquery('english', q.otq_text))
           OR c.text ILIKE $4
           OR s.title ILIKE $4
         )
@@ -166,6 +182,7 @@ export class RetrievalService {
     sourceType?: KnowledgeSourceType,
     limit = 8,
   ): Promise<RetrievedEvidence[]> {
+    if (!this.embeddingProvider) return this.retrieveKeyword(projectId, query, sourceType, limit);
     const candidateLimit = Math.max(limit * 2, 20);
 
     const [semanticCandidates, keywordCandidates] = await Promise.all([
@@ -217,8 +234,10 @@ export class RetrievalService {
       const meta = row.metadata;
       if (Array.isArray(meta.headingBreadcrumbs) && meta.headingBreadcrumbs.length > 0) {
         locator = meta.headingBreadcrumbs.join(' > ');
-      } else if (meta.pageNumber) {
-        locator = `Page ${meta.pageNumber}`;
+      } else if (typeof (meta.page ?? meta.pageNumber) === 'number') {
+        locator = `Page ${meta.page ?? meta.pageNumber}`;
+      } else if (typeof meta.sectionTitle === 'string' && meta.sectionTitle) {
+        locator = meta.sectionTitle;
       } else if (typeof meta.section === 'string') {
         locator = meta.section;
       }
@@ -235,6 +254,7 @@ export class RetrievalService {
       revision: row.source_revision,
       locator,
       snippet,
+      text: row.text,
       score: Number(score.toFixed(6)),
     };
   }

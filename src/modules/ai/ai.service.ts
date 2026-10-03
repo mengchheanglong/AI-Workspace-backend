@@ -197,9 +197,13 @@ export class AiService implements OnModuleInit {
 
     // Validate citations: must correspond strictly to retrieved evidence
     const validChunkIds = new Set(assembled.evidenceItems.map((e) => e.chunkId));
-    const validatedCitations: CitationItem[] = (generateResult.citations || []).filter((citation) =>
-      validChunkIds.has(citation.chunkId),
-    );
+    const validatedCitations: CitationItem[] = (generateResult.citations || [])
+      .filter((citation) => validChunkIds.has(citation.chunkId))
+      .map((citation) => ({
+        ...citation,
+        evidenceNumber:
+          assembled.evidenceItems.findIndex((item) => item.chunkId === citation.chunkId) + 1,
+      }));
 
     const assistantMessage = this.messageRepo.create({
       conversationId: conversation.id,

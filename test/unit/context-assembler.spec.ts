@@ -42,6 +42,25 @@ describe('ContextAssembler', () => {
     expect(result.systemPrompt).toContain('PM (Project Manager) mode');
   });
 
+  it('grounds answers in full chunks beyond the search preview without exceeding its budget', () => {
+    const item: RetrievedEvidence = {
+      chunkId: 'c',
+      sourceId: 'd',
+      sourceType: KnowledgeSourceType.DOCUMENT,
+      title: 'SRS',
+      revision: 1,
+      locator: 'Page 4',
+      score: 1,
+      snippet: 'Preview',
+      text: 'A'.repeat(300) + ' FR-19 requires review and confirmation.',
+    };
+    expect(assembler.assemble('AIW', AiMode.PM, [item]).evidenceText).toContain(
+      'FR-19 requires review',
+    );
+    const oversized = assembler.assemble('AIW', AiMode.PM, [{ ...item, text: 'A'.repeat(30000) }]);
+    expect(oversized.evidenceText.length).toBeLessThanOrEqual(16000);
+  });
+
   it('respects token budgeting and trims excess evidence blocks', () => {
     // Generate many large evidence chunks
     const largeSnippet = 'A'.repeat(5000); // 5000 chars ~ 1250 tokens

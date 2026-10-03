@@ -67,6 +67,7 @@ describe('RetrievalService', () => {
       revision: 1,
       locator: 'Architecture > Security',
       snippet: 'Authentication architecture documentation',
+      text: 'Authentication architecture documentation',
       score: 0.85,
     });
   });
@@ -77,7 +78,7 @@ describe('RetrievalService', () => {
         id: 'chunk-2',
         knowledge_source_id: 'ks-2',
         text: 'Bi-directional synchronization details',
-        metadata: { pageNumber: 4 },
+        metadata: { page: 4 },
         token_count: 80,
         chunk_index: 2,
         source_type: KnowledgeSourceType.REQUIREMENT,
@@ -99,6 +100,34 @@ describe('RetrievalService', () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.locator).toBe('Page 4');
     expect(result[0]!.score).toBe(0.92);
+    expect(mockDataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('c.embedding_model = $5'),
+      expect.arrayContaining(['mock-embed']),
+    );
+  });
+
+  it('uses real keyword retrieval without embeddings and reports semantic search unavailable', async () => {
+    const keywordOnly = new RetrievalService(mockDataSource as unknown as DataSource);
+    mockDataSource.query.mockResolvedValue([]);
+    await keywordOnly.retrieve({
+      actorId: 'user-1',
+      projectId: 'proj-1',
+      query: 'requirements',
+      mode: 'hybrid',
+    });
+    expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+    expect(mockDataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('plainto_tsquery'),
+      expect.anything(),
+    );
+    await expect(
+      keywordOnly.retrieve({
+        actorId: 'user-1',
+        projectId: 'proj-1',
+        query: 'requirements',
+        mode: 'semantic',
+      }),
+    ).rejects.toThrow('Semantic search requires');
   });
 
   it('performs hybrid retrieval with Reciprocal Rank Fusion (RRF)', async () => {

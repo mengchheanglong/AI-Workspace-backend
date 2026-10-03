@@ -31,6 +31,10 @@ export class ChatMessageResponseDto {
     items: {
       type: 'object',
       properties: {
+        evidenceNumber: {
+          type: 'number',
+          description: 'Original evidence marker number in the answer',
+        },
         chunkId: { type: 'string' },
         sourceId: { type: 'string' },
         sourceType: { type: 'string' },

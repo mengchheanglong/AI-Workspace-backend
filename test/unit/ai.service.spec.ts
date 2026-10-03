@@ -158,6 +158,16 @@ describe('AiService', () => {
 
       const mockEvidence: RetrievedEvidence[] = [
         {
+          chunkId: 'uncited-chunk',
+          sourceId: 'src-0',
+          sourceType: KnowledgeSourceType.DOCUMENT,
+          title: 'Other context',
+          revision: 1,
+          locator: 'Chunk #0',
+          snippet: 'Uncited information',
+          score: 1,
+        },
+        {
           chunkId: 'chunk-valid-1',
           sourceId: 'src-1',
           sourceType: KnowledgeSourceType.REQUIREMENT,
@@ -171,7 +181,7 @@ describe('AiService', () => {
       mockRetrievalService.retrieve.mockResolvedValue(mockEvidence);
 
       mockLlmProvider.generateAnswer.mockResolvedValue({
-        content: 'PostgreSQL uses pgvector for embeddings. [Evidence #1]',
+        content: 'PostgreSQL uses pgvector for embeddings. [Evidence #2]',
         citations: [
           {
             chunkId: 'chunk-valid-1',
@@ -203,13 +213,14 @@ describe('AiService', () => {
 
       expect(userMessage.content).toBe('Tell me about pgvector');
       expect(assistantMessage.content).toBe(
-        'PostgreSQL uses pgvector for embeddings. [Evidence #1]',
+        'PostgreSQL uses pgvector for embeddings. [Evidence #2]',
       );
       expect(assistantMessage.status).toBe(MessageStatus.COMPLETED);
 
       // Verify citation validation filtered out chunk-fake-99
       expect(assistantMessage.citations).toHaveLength(1);
       expect(assistantMessage.citations[0]!.chunkId).toBe('chunk-valid-1');
+      expect(assistantMessage.citations[0]!.evidenceNumber).toBe(2);
     });
 
     it('handles LLM generation failure gracefully with FAILED message status', async () => {
