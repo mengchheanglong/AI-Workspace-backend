@@ -4,6 +4,13 @@ import { Transform } from 'class-transformer';
 import { RequirementStatus, Priority } from '../entities/requirement.entity';
 
 export class ListRequirementsQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by exact requirement number', minimum: 1 })
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @ApiPropertyOptional({ enum: RequirementStatus })
   @IsOptional()
   @IsEnum(RequirementStatus)

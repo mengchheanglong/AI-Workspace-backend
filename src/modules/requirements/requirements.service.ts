@@ -134,7 +134,7 @@ export class RequirementsService {
 
     const qb: SelectQueryBuilder<Requirement> =
       this.requirementRepository.createQueryBuilder('requirement');
-    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+    if (typeof qb.leftJoinAndSelect === 'function') {
       qb.leftJoinAndSelect('requirement.project', 'project');
       qb.leftJoinAndSelect('requirement.updater', 'updater');
       qb.leftJoinAndSelect('requirement.creator', 'creator');
@@ -145,6 +145,9 @@ export class RequirementsService {
 
     if (query.status) {
       qb.andWhere('requirement.status = :status', { status: query.status });
+    }
+    if (query.number !== undefined) {
+      qb.andWhere('requirement.number = :number', { number: query.number });
     }
     if (query.priority) {
       qb.andWhere('requirement.priority = :priority', { priority: query.priority });

@@ -18,6 +18,7 @@ import { Requirement } from '../../src/modules/requirements/entities/requirement
 import { Meeting } from '../../src/modules/meetings/entities/meeting.entity';
 import { AuditService } from '../../src/modules/audit/audit.service';
 import { OutboxService } from '../../src/modules/ingestion/outbox.service';
+import { AIProposal, ProposalStatus } from '../../src/modules/ai/entities/proposal.entity';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
 const ACTOR_ID = '22222222-2222-2222-2222-222222222222';
@@ -93,6 +94,7 @@ describe('TasksService', () => {
   };
 
   const mockDataSource = {
+    getRepository: jest.fn(),
     transaction: jest.fn((cb: (manager: typeof mockTransactionManager) => Promise<unknown>) =>
       cb(mockTransactionManager),
     ),
@@ -116,6 +118,45 @@ describe('TasksService', () => {
     }).compile();
 
     service = module.get(TasksService);
+  });
+
+  describe('AI source traceability', () => {
+    it('loads only confirmed records in the requested project and omits private draft text', async () => {
+      const findOne = jest.fn().mockResolvedValue({
+        id: 'proposal-id',
+        sourceEntityType: 'REQUIREMENT',
+        sourceEntityId: REQ_ID,
+        sourceRevision: 2,
+        draftJson: {
+          type: 'CREATE_TASKS',
+          items: [{ itemId: 'one', title: 'Private draft text' }],
+          sourceReferences: [],
+        },
+      });
+      mockDataSource.getRepository.mockReturnValue({ findOne });
+      const result = await service.getAiProvenance(PROJECT_ID, TASK_ID);
+      expect(mockDataSource.getRepository).toHaveBeenCalledWith(AIProposal);
+      expect(findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            projectId: PROJECT_ID,
+            status: ProposalStatus.CONFIRMED,
+          }),
+        }),
+      );
+      expect(result).toEqual({
+        proposalId: 'proposal-id',
+        sourceEntityType: 'REQUIREMENT',
+        sourceEntityId: REQ_ID,
+        sourceRevision: 2,
+        sourceReferences: [],
+      });
+      expect(JSON.stringify(result)).not.toContain('Private draft text');
+    });
+    it('returns no AI sources for ordinary tasks', async () => {
+      mockDataSource.getRepository.mockReturnValue({ findOne: jest.fn().mockResolvedValue(null) });
+      expect(await service.getAiProvenance(PROJECT_ID, TASK_ID)).toBeNull();
+    });
   });
 
   describe('create', () => {

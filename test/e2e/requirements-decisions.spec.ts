@@ -1,3 +1,5 @@
+import { ApiKey } from '../../src/modules/auth/entities/api-key.entity';
+import { WorkspaceInvitation } from '../../src/modules/users/entities/workspace-invitation.entity';
 import 'reflect-metadata';
 import { Global, INestApplication, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -617,6 +619,10 @@ describe('Requirements and Decisions API (E2E)', () => {
         AuditModule,
       ],
     })
+      .overrideProvider(getRepositoryToken(ApiKey))
+      .useValue({ findOne: jest.fn().mockResolvedValue(null) })
+      .overrideProvider(getRepositoryToken(WorkspaceInvitation))
+      .useValue({ findOne: jest.fn().mockResolvedValue(null) })
       .overrideProvider(getRepositoryToken(User))
       .useValue(mockUserRepository)
       .overrideProvider(getRepositoryToken(Session))

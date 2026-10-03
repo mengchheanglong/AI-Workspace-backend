@@ -6,7 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, IsNull, Raw, Repository, SelectQueryBuilder } from 'typeorm';
+import { AIProposal, ProposalStatus } from '../ai/entities/proposal.entity';
+import { TaskProposalPayloadSchema } from '../ai/dto/task-proposal.dto';
 import { Task, TaskStatus, Priority } from './entities/task.entity';
 import { Project } from '../projects/entities/project.entity';
 import { ProjectMember, ProjectRole } from '../projects/entities/project-member.entity';
@@ -146,7 +148,7 @@ export class TasksService {
     const sortOrder = query.sortOrder ?? 'DESC';
 
     const qb: SelectQueryBuilder<Task> = this.taskRepository.createQueryBuilder('task');
-    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+    if (typeof qb.leftJoinAndSelect === 'function') {
       qb.leftJoinAndSelect('task.assignee', 'assignee');
       qb.leftJoinAndSelect('task.project', 'project');
     }
@@ -209,7 +211,7 @@ export class TasksService {
     const projectIds = memberships.map((m) => m.projectId);
 
     const qb: SelectQueryBuilder<Task> = this.taskRepository.createQueryBuilder('task');
-    if (typeof (qb as any).leftJoinAndSelect === 'function') {
+    if (typeof qb.leftJoinAndSelect === 'function') {
       qb.leftJoinAndSelect('task.assignee', 'assignee');
       qb.leftJoinAndSelect('task.project', 'project');
     }
@@ -257,6 +259,28 @@ export class TasksService {
       });
     }
     return task;
+  }
+
+  async getAiProvenance(projectId: string, taskId: string) {
+    const proposal = await this.dataSource.getRepository(AIProposal).findOne({
+      where: {
+        projectId,
+        status: ProposalStatus.CONFIRMED,
+        resultRecordIds: Raw((alias) => `${alias} @> CAST(:record AS jsonb)`, {
+          record: JSON.stringify([{ entityType: 'TASK', id: taskId }]),
+        }),
+      },
+    });
+    if (!proposal) return null;
+    const draft = TaskProposalPayloadSchema.safeParse(proposal.draftJson);
+    // Expose only public source identifiers, never another user's private draft.
+    return {
+      proposalId: proposal.id,
+      sourceEntityType: proposal.sourceEntityType,
+      sourceEntityId: proposal.sourceEntityId,
+      sourceRevision: proposal.sourceRevision,
+      sourceReferences: draft.success ? draft.data.sourceReferences || [] : [],
+    };
   }
 
   async update(
@@ -438,9 +462,12 @@ export class TasksService {
           message: 'Assignee must be an active member of this project.',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new BadRequestException({
           code: 'INVALID_ASSIGNEE',
           message: 'Assignee must be an active member of this project.',
@@ -465,9 +492,12 @@ export class TasksService {
           message: 'Linked requirement not found in this project.',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new BadRequestException({
           code: 'INVALID_REQUIREMENT',
           message: 'Linked requirement not found in this project.',
@@ -489,9 +519,12 @@ export class TasksService {
           message: 'Linked meeting not found in this project.',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new BadRequestException({
           code: 'INVALID_MEETING',
           message: 'Linked meeting not found in this project.',

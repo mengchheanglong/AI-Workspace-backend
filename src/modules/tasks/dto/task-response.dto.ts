@@ -1,7 +1,42 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Task, TaskStatus, Priority } from '../entities/task.entity';
 
+export class TaskAiProvenanceDto {
+  @ApiProperty() proposalId!: string;
+  @ApiProperty() sourceEntityType!: string;
+  @ApiProperty() sourceEntityId!: string;
+  @ApiProperty() sourceRevision!: number;
+  @ApiProperty({
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string', format: 'uuid' },
+        sourceType: { type: 'string', enum: ['DOCUMENT'] },
+        title: { type: 'string' },
+        revision: { type: 'integer' },
+        chunkId: { type: 'string', format: 'uuid' },
+        locator: { type: 'string' },
+      },
+    },
+  })
+  sourceReferences!: Array<{
+    sourceId: string;
+    sourceType: 'DOCUMENT';
+    title: string;
+    revision: number;
+    chunkId: string;
+    locator: string;
+  }>;
+}
+
 export class TaskResponseDto {
+  @ApiPropertyOptional({
+    type: TaskAiProvenanceDto,
+    nullable: true,
+    description: 'Confirmed AI source metadata on task detail; private draft text is omitted.',
+  })
+  aiProvenance?: TaskAiProvenanceDto | null;
   @ApiProperty({ example: 'f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3' })
   id!: string;
 

@@ -2,6 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Requirement, RequirementStatus, Priority } from '../entities/requirement.entity';
 
 export class RequirementResponseDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Meeting from which this requirement was confirmed.',
+  })
+  sourceMeetingId!: string | null;
   @ApiProperty({ example: 'f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3' })
   id!: string;
 
@@ -69,6 +74,7 @@ export class RequirementResponseDto {
     return {
       id: requirement.id,
       projectId: requirement.projectId,
+      sourceMeetingId: requirement.sourceMeetingId ?? null,
       number: requirement.number,
       displayKey: `${projectKey}-REQ-${requirement.number}`,
       title: requirement.title,

@@ -378,9 +378,12 @@ export class DecisionsService {
           message: 'Linked requirement not found in this project.',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new BadRequestException({
           code: 'INVALID_REQUIREMENT',
           message: 'Linked requirement not found in this project.',
@@ -402,9 +405,12 @@ export class DecisionsService {
           message: 'Referenced decision not found in this project.',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new BadRequestException({
           code: 'INVALID_DECISION',
           message: 'Referenced decision not found in this project.',

@@ -50,7 +50,7 @@ export class ProjectPolicyGuard implements CanActivate {
       return true;
     }
 
-    let membership: ProjectMember | null = null;
+    let membership: ProjectMember | null;
     try {
       membership = await this.memberRepository.findOne({
         where: {
@@ -60,8 +60,11 @@ export class ProjectPolicyGuard implements CanActivate {
         },
         relations: ['project'],
       });
-    } catch (err: any) {
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+    } catch (err: unknown) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new NotFoundException({
           code: 'PROJECT_NOT_FOUND',
           message: 'Project not found.',

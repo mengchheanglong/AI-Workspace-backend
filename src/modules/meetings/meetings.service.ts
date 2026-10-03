@@ -348,9 +348,12 @@ export class MeetingsService {
           message: 'All meeting attendees must be active members of this project.',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      if (err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+      if (
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === '22P02') ||
+        (err instanceof Error && err.message.includes('invalid input syntax for type uuid'))
+      ) {
         throw new BadRequestException({
           code: 'INVALID_ATTENDEE',
           message: 'All meeting attendees must be active members of this project.',

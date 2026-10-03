@@ -90,7 +90,7 @@ describe('Environment validation', () => {
     });
     expect(config.AI_ENABLED).toBe(true);
     expect(config.DEEPSEEK_API_KEY).toBe('test-deepseek-key');
-    expect(config.AI_EMBEDDING_PROVIDER).toBe('mock');
+    expect(config.AI_EMBEDDING_PROVIDER).toBe('disabled');
     expect(config.AI_DAILY_PROJECT_BUDGET_USD).toBe(25);
   });
 
@@ -104,5 +104,13 @@ describe('Environment validation', () => {
         AI_DAILY_PROJECT_BUDGET_USD: '25.00',
       }),
     ).toThrow('OPENAI_API_KEY');
+  });
+  it('rejects mock providers in a running development workspace', () => {
+    expect(() =>
+      validateEnvironment({ ...valid, NODE_ENV: 'development', AI_EMBEDDING_PROVIDER: 'mock' }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({ ...valid, NODE_ENV: 'development', GITHUB_USE_MOCK: 'true' }),
+    ).toThrow();
   });
 });

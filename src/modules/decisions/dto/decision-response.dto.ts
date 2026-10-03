@@ -2,6 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Decision, DecisionStatus } from '../entities/decision.entity';
 
 export class DecisionResponseDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Meeting from which this decision was confirmed.',
+  })
+  sourceMeetingId!: string | null;
   @ApiProperty({ example: 'f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3' })
   id!: string;
 
@@ -57,6 +62,7 @@ export class DecisionResponseDto {
     return {
       id: decision.id,
       projectId: decision.projectId,
+      sourceMeetingId: decision.sourceMeetingId ?? null,
       number: decision.number,
       displayKey: `${projectKey}-DEC-${decision.number}`,
       title: decision.title,

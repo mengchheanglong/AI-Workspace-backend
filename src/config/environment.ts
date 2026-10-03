@@ -55,7 +55,7 @@ const schema = z
     DEEPSEEK_API_KEY: emptyStringToUndefined(z.string().optional()),
     DEEPSEEK_BASE_URL: z.literal('https://api.deepseek.com').default('https://api.deepseek.com'),
     AI_CHAT_MODEL: z.enum(['deepseek-flash', 'deepseek-v4-pro']).default('deepseek-flash'),
-    AI_EMBEDDING_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
+    AI_EMBEDDING_PROVIDER: z.enum(['disabled', 'mock', 'openai']).default('disabled'),
     OPENAI_API_KEY: emptyStringToUndefined(z.string().optional()),
     OPENAI_EMBEDDING_BASE_URL: z.string().default('https://api.openai.com/v1'),
     AI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
@@ -67,6 +67,16 @@ const schema = z
     SUPABASE_JWKS_URL: emptyStringToUndefined(z.string().url().optional()),
   })
   .superRefine((value, context) => {
+    if (
+      value.NODE_ENV !== 'test' &&
+      (value.AI_EMBEDDING_PROVIDER === 'mock' || value.GITHUB_USE_MOCK)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['AI_EMBEDDING_PROVIDER'],
+        message: 'Mock providers are only available in tests.',
+      });
+    }
     if (value.GITHUB_ENABLED && !value.GITHUB_USE_MOCK) {
       if (!value.GITHUB_APP_ID && !value.GITHUB_CLIENT_ID) {
         context.addIssue({

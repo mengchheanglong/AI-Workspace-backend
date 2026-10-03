@@ -62,7 +62,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
       error: {
         code: (typeof record.code === 'string' ? record.code : codes[status]) ?? 'INTERNAL_ERROR',
         message:
-          status >= 500
+          status >= 500 &&
+          !['AI_OUTPUT_TRUNCATED', 'AI_OUTPUT_INVALID_JSON', 'AI_RETRIEVAL_FAILED'].includes(
+            String(record.code),
+          )
             ? 'Service temporarily unavailable.'
             : typeof record.message === 'string'
               ? record.message

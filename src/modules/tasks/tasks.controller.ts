@@ -16,6 +16,7 @@ import {
 import {
   ApiCookieAuth,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiHeader,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -40,6 +41,7 @@ import { User } from '../users/entities/user.entity';
 import { ProjectMember, ProjectRole } from '../projects/entities/project-member.entity';
 
 @ApiTags('Tasks')
+@ApiExtraModels(TaskResponseDto)
 @ApiCookieAuth()
 @Controller('projects/:projectId/tasks')
 @UseGuards(SessionAuthGuard, CsrfGuard, ProjectPolicyGuard)
@@ -87,7 +89,13 @@ export class TasksController {
 
   @Get(':taskId')
   @ApiOperation({ summary: 'Get task details' })
-  @ApiOkResponse({ description: 'Task returned' })
+  @ApiOkResponse({
+    description: 'Task returned with confirmed AI source metadata when available',
+    schema: {
+      type: 'object',
+      properties: { data: { $ref: '#/components/schemas/TaskResponseDto' } },
+    },
+  })
   @ApiNotFoundResponse({ description: 'Task not found' })
   async getById(
     @Param('projectId', ParseUUIDPipe) projectId: string,
@@ -95,7 +103,8 @@ export class TasksController {
   ) {
     const task = await this.tasksService.getById(projectId, taskId);
     const projectKey = await this.tasksService.getProjectKey(projectId);
-    return { data: TaskResponseDto.fromEntity(task, projectKey) };
+    const aiProvenance = await this.tasksService.getAiProvenance(projectId, taskId);
+    return { data: { ...TaskResponseDto.fromEntity(task, projectKey), aiProvenance } };
   }
 
   @Patch(':taskId')

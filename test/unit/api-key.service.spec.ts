@@ -143,7 +143,7 @@ describe('ApiKeyService & Bearer Auth', () => {
       headers: Record<string, string>,
       cookies: Record<string, string> = {},
     ): ExecutionContext {
-      const req: any = { headers, cookies };
+      const req = { headers, cookies };
       return {
         switchToHttp: () => ({
           getRequest: () => req,
@@ -162,7 +162,7 @@ describe('ApiKeyService & Bearer Auth', () => {
       const canActivate = await guard.canActivate(ctx);
 
       expect(canActivate).toBe(true);
-      const req = ctx.switchToHttp().getRequest<any>();
+      const req = ctx.switchToHttp().getRequest<{ user?: User }>();
       expect(req.user).toEqual(mockUser);
     });
 
