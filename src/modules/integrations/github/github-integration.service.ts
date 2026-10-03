@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -5,7 +6,11 @@ import { Project } from '../../projects/entities/project.entity';
 import { AuditService } from '../../audit/audit.service';
 import { IngestionService } from '../../ingestion/ingestion.service';
 import { KnowledgeSourceType } from '../../ingestion/entities/knowledge-source.entity';
-import { GITHUB_CLIENT, IGitHubClient } from './client/github-client.interface';
+import {
+  GITHUB_CLIENT,
+  IGitHubClient,
+  GitHubRateLimitError,
+} from './client/github-client.interface';
 import { ConnectGitHubDto } from './dto/connect-github.dto';
 import {
   GitHubConnectionResponseDto,
@@ -438,6 +443,7 @@ export class GitHubIntegrationService {
     actorId: string,
     connectionId?: string,
     accessToken?: string,
+    options: { cursor?: number; batchSize?: number; treeVersion?: string } = {},
   ): Promise<SyncCodebaseResponseDto> {
     await this.ensureProjectExists(projectId);
 
@@ -519,12 +525,43 @@ export class GitHubIntegrationService {
       return true;
     });
 
-    // Ingest top candidate files (limit to 30 files to ensure responsive indexing & prevent rate limits)
-    const filesToSync = candidateFiles.slice(0, 30);
+    const treeVersion = createHash('sha256')
+      .update(JSON.stringify(candidateFiles.map((e) => [e.path, e.sha])))
+      .digest('hex');
+    if (options.treeVersion && options.treeVersion !== treeVersion)
+      throw new BadRequestException({
+        code: 'GITHUB_TREE_CHANGED',
+        message:
+          'Repository changed during indexing. Restart indexing; completed unchanged files will be skipped.',
+      });
+    const cursor = options.cursor ?? 0;
+    const batch = candidateFiles.slice(
+      cursor,
+      cursor + (options.batchSize ?? candidateFiles.length),
+    );
+    const nextCursor = cursor + batch.length < candidateFiles.length ? cursor + batch.length : null;
+    // Visit every eligible file; successful SHA checkpoints make subsequent runs resumable.
     let indexedFilesCount = 0;
+    let unchangedFilesCount = 0;
+    let failedFilesCount = 0;
+    let rateLimited = false;
 
-    for (const treeEntry of filesToSync) {
+    for (const treeEntry of batch) {
       try {
+        let fileEntity = await this.fileRepo.findOne({
+          where: { connectionId: connection.id, path: treeEntry.path },
+        });
+        if (
+          fileEntity?.sha === treeEntry.sha &&
+          (await this.ingestionService.isSourceIndexed(
+            projectId,
+            KnowledgeSourceType.GITHUB_CODE,
+            fileEntity.id,
+          ))
+        ) {
+          unchangedFilesCount++;
+          continue;
+        }
         const fileContent = await this.githubClient.fetchFileContent(
           connection.repositoryOwner,
           connection.repositoryName,
@@ -532,9 +569,9 @@ export class GitHubIntegrationService {
           accessToken,
         );
 
-        if (!fileContent || !fileContent.content) {
-          continue;
-        }
+        if (!fileContent) throw new Error('GitHub file content unavailable');
+        if (fileContent.sha !== treeEntry.sha)
+          throw new Error('Repository changed during indexing; retry with the current tree');
 
         const pathParts = treeEntry.path.split('/');
         const fileName = pathParts[pathParts.length - 1] ?? treeEntry.path;
@@ -542,15 +579,11 @@ export class GitHubIntegrationService {
         const lastExtPart = extParts[extParts.length - 1];
         const extension = extParts.length > 1 && lastExtPart ? lastExtPart.toLowerCase() : 'txt';
 
-        let fileEntity = await this.fileRepo.findOne({
-          where: { connectionId: connection.id, path: treeEntry.path },
-        });
-
         if (fileEntity) {
           fileEntity.fileName = fileName;
           fileEntity.extension = extension;
           fileEntity.size = fileContent.size;
-          fileEntity.sha = treeEntry.sha;
+          fileEntity.sha = ''; // Acknowledge this SHA only after ingestion succeeds.
           fileEntity.htmlUrl = fileContent.html_url;
           fileEntity.syncedAt = new Date();
         } else {
@@ -561,7 +594,7 @@ export class GitHubIntegrationService {
             fileName,
             extension,
             size: fileContent.size,
-            sha: treeEntry.sha,
+            sha: '',
             htmlUrl: fileContent.html_url,
             syncedAt: new Date(),
           });
@@ -570,7 +603,7 @@ export class GitHubIntegrationService {
         fileEntity = await this.fileRepo.save(fileEntity);
 
         // Ingest into KnowledgeSource
-        await this.ingestionService.syncGitHubCodeFile(projectId, {
+        const indexedSource = await this.ingestionService.syncGitHubCodeFile(projectId, {
           fileId: fileEntity.id,
           path: fileEntity.path,
           fileName: fileEntity.fileName,
@@ -583,9 +616,18 @@ export class GitHubIntegrationService {
           revision: Math.floor(fileEntity.syncedAt.getTime() / 1000),
         });
 
+        if (!indexedSource || indexedSource.status !== 'INDEXED')
+          throw new Error('File indexing did not complete');
+        fileEntity.sha = treeEntry.sha;
+        await this.fileRepo.save(fileEntity);
         indexedFilesCount++;
       } catch (err) {
-        this.logger.warn(`Could not index file ${treeEntry.path}: ${err}`);
+        failedFilesCount++;
+        this.logger.warn(`Could not index file ${treeEntry.path}`);
+        if (err instanceof GitHubRateLimitError) {
+          rateLimited = true;
+          break;
+        }
       }
     }
 
@@ -601,11 +643,23 @@ export class GitHubIntegrationService {
       entityId: connection.id,
       metadata: {
         indexedFilesCount,
+        unchangedFilesCount,
+        failedFilesCount,
+        candidateFilesCount: candidateFiles.length,
         totalFiles,
       },
     });
 
+    if (failedFilesCount)
+      throw new BadRequestException({
+        code: 'GITHUB_CODE_SYNC_INCOMPLETE',
+        message: `Indexing incomplete: ${indexedFilesCount} indexed, ${unchangedFilesCount} unchanged out of ${candidateFiles.length} eligible files. ${rateLimited ? 'GitHub rate limit reached; retry after the limit resets or supply a GitHub token.' : `${failedFilesCount} files failed; retry indexing.`} Completed files are preserved and skipped on retry.`,
+      });
     return {
+      nextCursor,
+      treeVersion,
+      candidateFilesCount: candidateFiles.length,
+      unchangedFilesCount,
       indexedFilesCount,
       totalFiles,
       lastSyncedAt: new Date().toISOString(),

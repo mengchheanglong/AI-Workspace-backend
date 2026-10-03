@@ -4,6 +4,7 @@ import { Project } from '../../src/modules/projects/entities/project.entity';
 import { AuditService } from '../../src/modules/audit/audit.service';
 import { IngestionService } from '../../src/modules/ingestion/ingestion.service';
 import { KnowledgeSourceType } from '../../src/modules/ingestion/entities/knowledge-source.entity';
+import { GitHubRateLimitError } from '../../src/modules/integrations/github/client/github-client.interface';
 import { MockGitHubClientService } from '../../src/modules/integrations/github/client/mock-github-client.service';
 import {
   GitHubConnection,
@@ -78,7 +79,8 @@ describe('GitHubIntegrationService', () => {
     ingestionService = {
       syncGitHubIssue: jest.fn().mockResolvedValue(null),
       syncGitHubPullRequest: jest.fn().mockResolvedValue(null),
-      syncGitHubCodeFile: jest.fn().mockResolvedValue(null),
+      syncGitHubCodeFile: jest.fn().mockResolvedValue({ status: 'INDEXED' }),
+      isSourceIndexed: jest.fn().mockResolvedValue(true),
       deactivateSourcesByType: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<IngestionService>;
 
@@ -355,6 +357,115 @@ describe('GitHubIntegrationService', () => {
           action: 'GITHUB_CODE_INDEXED',
         }),
       );
+    });
+  });
+
+  describe('complete codebase indexing', () => {
+    beforeEach(() => {
+      connectionRepo.findOne.mockResolvedValue({
+        id: 'conn-1',
+        projectId,
+        repositoryOwner: 'org',
+        repositoryName: 'repo',
+        status: GitHubConnectionStatus.CONNECTED,
+      } as GitHubConnection);
+      fileRepo.findOne.mockResolvedValue(null);
+    });
+    const entries = Array.from({ length: 35 }, (_, i) => ({
+      path: `src/file-${i}.ts`,
+      type: 'blob' as const,
+      mode: '100644',
+      sha: `sha-${i}`,
+      size: 20,
+      url: '',
+    }));
+    function mockContents() {
+      jest.spyOn(githubClient, 'fetchRepositoryTree').mockResolvedValue(entries);
+      return jest
+        .spyOn(githubClient, 'fetchFileContent')
+        .mockImplementation(async (_owner, _repo, path) => ({
+          path,
+          sha: entries.find((e) => e.path === path)!.sha,
+          size: 20,
+          content: 'export const value = 1;',
+          html_url: 'https://github.com/org/repo/' + path,
+        }));
+    }
+    it('indexes all 35 eligible files rather than the first 30', async () => {
+      const fetchFile = mockContents();
+      const result = await service.syncCodebase(projectId, actorId, 'conn-1');
+      expect(result.indexedFilesCount).toBe(35);
+      expect(result.candidateFilesCount).toBe(35);
+      expect(fetchFile).toHaveBeenCalledTimes(35);
+    });
+    it('continues short batches until every eligible file is indexed exactly once', async () => {
+      const fetchFile = mockContents();
+      let cursor = 0;
+      let treeVersion: string | undefined;
+      let indexed = 0;
+      do {
+        const result = await service.syncCodebase(projectId, actorId, 'conn-1', undefined, {
+          cursor,
+          batchSize: 5,
+          treeVersion,
+        });
+        indexed += result.indexedFilesCount;
+        treeVersion = result.treeVersion;
+        expect(result.candidateFilesCount).toBe(35);
+        if (result.nextCursor === null) break;
+        cursor = result.nextCursor;
+      } while (cursor < 35);
+      expect(indexed).toBe(35);
+      expect(new Set(fetchFile.mock.calls.map((call) => call[2])).size).toBe(35);
+      expect(fetchFile).toHaveBeenCalledTimes(35);
+    });
+    it('rejects continuation when the repository manifest changes', async () => {
+      const fetchFile = mockContents();
+      await expect(
+        service.syncCodebase(projectId, actorId, 'conn-1', undefined, {
+          cursor: 2,
+          batchSize: 2,
+          treeVersion: '0'.repeat(64),
+        }),
+      ).rejects.toThrow('Repository changed during indexing');
+      expect(fetchFile).not.toHaveBeenCalled();
+    });
+    it('skips unchanged files only when their source is indexed', async () => {
+      const fetchFile = mockContents();
+      fileRepo.findOne.mockResolvedValueOnce({ id: 'file-0', sha: 'sha-0' } as GitHubRepoFile);
+      const result = await service.syncCodebase(projectId, actorId, 'conn-1');
+      expect(result.unchangedFilesCount).toBe(1);
+      expect(result.indexedFilesCount).toBe(34);
+      expect(fetchFile).toHaveBeenCalledTimes(34);
+      expect(ingestionService.isSourceIndexed).toHaveBeenCalledWith(
+        projectId,
+        KnowledgeSourceType.GITHUB_CODE,
+        'file-0',
+      );
+    });
+    it('retries matching-SHA files whose prior indexing failed', async () => {
+      const fetchFile = mockContents();
+      fileRepo.findOne.mockResolvedValueOnce({ id: 'file-0', sha: 'sha-0' } as GitHubRepoFile);
+      ingestionService.isSourceIndexed.mockResolvedValue(false);
+      const result = await service.syncCodebase(projectId, actorId, 'conn-1');
+      expect(result.indexedFilesCount).toBe(35);
+      expect(fetchFile).toHaveBeenCalledTimes(35);
+    });
+    it('reports failed ingestion and leaves its SHA unacknowledged for retry', async () => {
+      mockContents();
+      ingestionService.syncGitHubCodeFile.mockRejectedValueOnce(new Error('ingestion failed'));
+      await expect(service.syncCodebase(projectId, actorId, 'conn-1')).rejects.toThrow(
+        'Indexing incomplete',
+      );
+      expect(fileRepo.save.mock.calls[0]?.[0]).toMatchObject({ sha: '' });
+    });
+    it('stops on rate limiting and reports resumable incomplete coverage', async () => {
+      const fetchFile = mockContents();
+      fetchFile.mockRejectedValueOnce(new GitHubRateLimitError('rate limit'));
+      await expect(service.syncCodebase(projectId, actorId, 'conn-1')).rejects.toThrow(
+        'GitHub rate limit reached',
+      );
+      expect(fetchFile).toHaveBeenCalledTimes(1);
     });
   });
 

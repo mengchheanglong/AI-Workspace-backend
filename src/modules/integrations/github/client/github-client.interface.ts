@@ -116,3 +116,5 @@ export interface IGitHubClient {
 }
 
 export const GITHUB_CLIENT = Symbol('GITHUB_CLIENT');
+
+export class GitHubRateLimitError extends Error {}

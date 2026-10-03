@@ -38,12 +38,8 @@ import { GitHubIntegrationService } from './github-integration.service';
         httpClient: HttpGitHubClientService,
         mockClient: MockGitHubClientService,
       ) => {
-        const enabled = configService.get<boolean>('GITHUB_ENABLED') ?? false;
         const useMock = configService.get<string>('GITHUB_USE_MOCK') === 'true';
-        if (enabled && !useMock) {
-          return httpClient;
-        }
-        return mockClient;
+        return process.env.NODE_ENV === 'test' && useMock ? mockClient : httpClient;
       },
       inject: [ConfigService, HttpGitHubClientService, MockGitHubClientService],
     },

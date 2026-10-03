@@ -1,3 +1,4 @@
+import { SyncCodebaseDto } from './dto/sync-codebase.dto';
 import {
   Body,
   Controller,
@@ -129,10 +130,15 @@ export class GitHubIntegrationController {
   async syncCode(
     @Param('projectId', ParseUUIDPipe) projectId: string,
     @CurrentUser('id') actorId: string,
-    @Body('connectionId') connectionId?: string,
-    @Body('accessToken') accessToken?: string,
+    @Body() dto: SyncCodebaseDto,
   ): Promise<SyncCodebaseResponseDto> {
-    return this.githubService.syncCodebase(projectId, actorId, connectionId, accessToken);
+    return this.githubService.syncCodebase(
+      projectId,
+      actorId,
+      dto.connectionId,
+      dto.accessToken,
+      dto,
+    );
   }
 
   @Post('connections/:connectionId/sync-code')
@@ -143,9 +149,9 @@ export class GitHubIntegrationController {
     @Param('projectId', ParseUUIDPipe) projectId: string,
     @Param('connectionId', ParseUUIDPipe) connectionId: string,
     @CurrentUser('id') actorId: string,
-    @Body('accessToken') accessToken?: string,
+    @Body() dto: SyncCodebaseDto,
   ): Promise<SyncCodebaseResponseDto> {
-    return this.githubService.syncCodebase(projectId, actorId, connectionId, accessToken);
+    return this.githubService.syncCodebase(projectId, actorId, connectionId, dto.accessToken, dto);
   }
 
   @Delete('connections/:connectionId')

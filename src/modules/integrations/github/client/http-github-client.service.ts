@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  GitHubRateLimitError,
   FetchIssuesOptions,
   FetchPullRequestsOptions,
   GitHubApiComment,
@@ -185,8 +186,37 @@ export class HttpGitHubClientService implements IGitHubClient {
       throw new Error(`GitHub Git Trees API returned HTTP ${res.status}`);
     }
 
-    const data = (await res.json()) as { tree: GitHubApiTreeEntry[]; truncated?: boolean };
-    return data.tree || [];
+    const data = (await res.json()) as {
+      sha: string;
+      tree: GitHubApiTreeEntry[];
+      truncated?: boolean;
+    };
+    if (!data.truncated) return data.tree || [];
+    // Recursive trees can be truncated. Walk complete subtrees instead of accepting partial coverage.
+    const files: GitHubApiTreeEntry[] = [];
+    const pending = [{ sha: data.sha, prefix: '' }];
+    while (pending.length) {
+      const next = pending.pop()!;
+      const treeResponse = await fetch(
+        `${this.baseUrl}/repos/${owner}/${repo}/git/trees/${next.sha}`,
+        { headers },
+      );
+      if (!treeResponse.ok) throw new Error(`GitHub tree API returned HTTP ${treeResponse.status}`);
+      const tree = (await treeResponse.json()) as {
+        tree: GitHubApiTreeEntry[];
+        truncated?: boolean;
+      };
+      if (tree.truncated)
+        throw new Error(
+          'GitHub returned a truncated non-recursive tree; complete indexing is unavailable',
+        );
+      for (const entry of tree.tree) {
+        const path = next.prefix + entry.path;
+        if (entry.type === 'tree') pending.push({ sha: entry.sha, prefix: path + '/' });
+        else files.push({ ...entry, path });
+      }
+    }
+    return files;
   }
 
   async fetchFileContent(
@@ -204,7 +234,12 @@ export class HttpGitHubClientService implements IGitHubClient {
 
     if (!res.ok) {
       this.logger.warn(`Failed to fetch file ${path} from ${owner}/${repo}: ${res.status}`);
-      return null;
+      if (
+        res.status === 429 ||
+        (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')
+      )
+        throw new GitHubRateLimitError('GitHub rate limit reached');
+      throw new Error(`GitHub file API returned HTTP ${res.status}`);
     }
 
     const data = (await res.json()) as {

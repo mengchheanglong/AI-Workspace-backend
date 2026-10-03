@@ -73,6 +73,10 @@ export class GitHubRepoFileResponseDto {
 }
 
 export class SyncCodebaseResponseDto {
+  nextCursor!: number | null;
+  treeVersion!: string;
+  candidateFilesCount!: number;
+  unchangedFilesCount!: number;
   indexedFilesCount!: number;
   totalFiles!: number;
   lastSyncedAt!: string;
