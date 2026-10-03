@@ -1,5 +1,8 @@
 import 'reflect-metadata';
-import AppDataSource from '../src/database/data-source';
+import 'dotenv/config';
+import { DataSource } from 'typeorm';
+import { databaseOptions } from '../src/database/database-options';
+import { mockVerificationDatabaseUrl } from './mock-verification-database';
 import { Project } from '../src/modules/projects/entities/project.entity';
 import { OutboxEvent } from '../src/modules/ingestion/entities/outbox-event.entity';
 import {
@@ -15,6 +18,7 @@ import { MockEmbeddingProvider } from '../src/modules/ingestion/embedding/mock-e
 import { ConfigService } from '@nestjs/config';
 
 async function verify() {
+  const AppDataSource = new DataSource(databaseOptions(mockVerificationDatabaseUrl()));
   console.log('=== P2-01 Ingestion & Vector Pipeline End-to-End Verification ===');
   console.log('Connecting to database...');
   await AppDataSource.initialize();
@@ -133,6 +137,7 @@ async function verify() {
       throw new Error('Expected at least 1 chunk to be generated and stored!');
     }
     const sampleChunk = chunks[0];
+    if (!sampleChunk.embedding) throw new Error('Expected explicit test embeddings.');
     console.log(
       `Sample chunk ${sampleChunk.id}: index=${sampleChunk.chunkIndex}, tokenCount=${sampleChunk.tokenCount}`,
     );

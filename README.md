@@ -151,3 +151,31 @@ curl -sSL https://raw.githubusercontent.com/mengchheanglong/AI-Workspace-backend
 - **Migration permission denied:** extension setup needs an appropriate migration role; do not enable `synchronize` to bypass migrations.
 - **Readiness 503:** check database availability and local storage permissions. Detailed credentials/paths are intentionally omitted from public responses.
 - **PowerShell script execution restrictions:** use `pnpm.cmd` instead of `pnpm`; do not weaken machine-wide execution policy.
+
+## Reviewed AI actions through MCP
+
+The stdio server now exposes 32 tools, including `generate_task_proposal`, `generate_decision_task_proposal`, `generate_meeting_analysis`, `list_ai_proposals`, `get_ai_proposal`, `update_ai_proposal`, `confirm_ai_proposal`, and `reject_ai_proposal`.
+
+Generation creates private, project-scoped drafts only. Inspect the proposal and its source revision, edit using its current version, and confirm only reviewed, user-authorized item IDs. Confirmation requires `userConfirmed: true` and a stable `idempotencyKey`; reuse that key for retries. An explicit empty `selectedItemIds` array saves no domain items (a meeting summary can still be selected separately). Unwanted drafts can be rejected. All operations use the existing authenticated API, permissions, validation and transaction checks.
+
+Codex uses `.codex/config.toml` for project MCP settings. Forward the PAT with `env_vars = ["AI_WORKSPACE_API_KEY"]` and keep it in the local environment. CLI environment options belong before `-- node ...`; do not pass them as Node arguments. Restart the MCP client after rebuilding the backend to refresh its tool list.
+
+Requirement task drafts include server-owned sourceReferences for retrieved project documents. Review document/revision/page sources before confirmation; edits cannot replace these references. A changed or removed supporting document causes STALE_PROPOSAL. INVALID_PROPOSAL_DRAFT, INVALID_SELECTION and ASSIGNEE_NOT_MEMBER reject invalid writes. AI_RETRIEVAL_FAILED reports unavailable document context without creating a proposal or task.
+
+GET /projects/:projectId/tasks/:taskId (and MCP get_task) returns aiProvenance for confirmed AI-created tasks: source entity/revision, proposal ID and document references. Private draft text is omitted. Meeting-derived requirements and decisions expose sourceMeetingId, and their generated tasks retain that link. Ordinary tasks return null provenance.
+
+## Real data and provider configuration
+
+Runtime pages and MCP tools use saved workspace records. The current workspace has two active users, Codex and Claude; the SRS and its saved feature-test records are retained. Mock LLM, embedding and GitHub providers are restricted to isolated tests. Unconfigured AI generation reports unavailable instead of returning simulated answers.
+
+`AI_EMBEDDING_PROVIDER=disabled` is the default. In this mode ingestion preserves source text and indexes it for keyword search; hybrid retrieval uses keyword results. Explicit semantic search reports unavailable until a real embedding provider is configured. DeepSeek generation remains separate from embeddings.
+
+To enable real semantic search, configure `AI_EMBEDDING_PROVIDER=openai` with a separate `OPENAI_API_KEY`, then reindex the project sources. Migration `1790985600000-RemoveMockEmbeddings` makes vectors nullable and clears only vectors labeled `mock-*`, retaining text, provenance and real vectors. Apply migrations explicitly; never reset a persistent database for this cleanup.
+
+The legacy mock verification scripts (`verify-p2-01-ingestion.ts`, `verify-p2-02-retrieval-chat.ts`, `verify-ai-task-flow.ts`) require a separate local `TEST_DATABASE_URL` targeting `ai_workspace_test` on port 55433. They ignore the application's `DATABASE_URL` so they cannot populate the live workspace with test data.
+
+## Complete GitHub code indexing
+
+Index Codebase checks every eligible source/document file, with no file-count cap. The frontend automatically follows `nextCursor` through short requests and shows checked-file progress. `POST /projects/:projectId/integrations/github/sync-code` accepts `connectionId`, an optional transient `accessToken`, `cursor` (default 0), `batchSize` (default 2, maximum 5), and `treeVersion` returned by the first batch. Continue until `nextCursor` is null; aggregate each batch's `indexedFilesCount` and `unchangedFilesCount`. A changed manifest rejects continuation and requires restarting from zero.
+
+Successful GitHub SHA checkpoints and an indexed knowledge source allow unchanged files to be skipped. Interrupted or failed files are retried on the next run; partial coverage returns an error instead of success. Truncated recursive GitHub trees are expanded using nonrecursive tree requests. Generated/dependency files, lockfiles, unsupported formats and files over 100 KB remain excluded. An optional GitHub token can be entered for a synchronization/indexing run; it is cleared afterward and is not stored by the integration.

@@ -1013,6 +1013,16 @@
             }
           },
           {
+            "name": "number",
+            "required": false,
+            "in": "query",
+            "description": "Filter by exact requirement number",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -1949,7 +1959,19 @@
         ],
         "responses": {
           "200": {
-            "description": "Task returned"
+            "description": "Task returned with confirmed AI source metadata when available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TaskResponseDto"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
             "description": "Task not found"
@@ -4048,6 +4070,187 @@
           "version"
         ]
       },
+      "TaskAiProvenanceDto": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string"
+          },
+          "sourceEntityType": {
+            "type": "string"
+          },
+          "sourceEntityId": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "number"
+          },
+          "sourceReferences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "sourceType": {
+                  "type": "string",
+                  "enum": [
+                    "DOCUMENT"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "integer"
+                },
+                "chunkId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "locator": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "proposalId",
+          "sourceEntityType",
+          "sourceEntityId",
+          "sourceRevision",
+          "sourceReferences"
+        ]
+      },
+      "TaskResponseDto": {
+        "type": "object",
+        "properties": {
+          "aiProvenance": {
+            "nullable": true,
+            "description": "Confirmed AI source metadata on task detail; private draft text is omitted.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskAiProvenanceDto"
+              }
+            ]
+          },
+          "id": {
+            "type": "string",
+            "example": "f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3"
+          },
+          "projectId": {
+            "type": "string",
+            "example": "f87a8f89-8d7b-4029-9fa9-6f9ec67bc9e3"
+          },
+          "number": {
+            "type": "number",
+            "example": 8
+          },
+          "displayKey": {
+            "type": "string",
+            "example": "AIW-TASK-8"
+          },
+          "title": {
+            "type": "string",
+            "example": "Implement login API"
+          },
+          "description": {
+            "type": "object",
+            "example": "Set up endpoints and cookie sessions",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "IN_REVIEW",
+              "DONE",
+              "CANCELLED",
+              "BLOCKED"
+            ],
+            "example": "TODO"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "example": "MEDIUM"
+          },
+          "assigneeId": {
+            "type": "object",
+            "nullable": true
+          },
+          "assignee": {
+            "type": "object",
+            "description": "Assignee details when loaded",
+            "nullable": true
+          },
+          "project": {
+            "type": "object",
+            "description": "Project details when loaded",
+            "nullable": true
+          },
+          "blockedReason": {
+            "type": "object",
+            "example": "Waiting on Phase 2 scope decision",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "object",
+            "example": "2026-10-15",
+            "nullable": true
+          },
+          "requirementId": {
+            "type": "object",
+            "nullable": true
+          },
+          "sourceMeetingId": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "example": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-10T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-09-10T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "number",
+          "displayKey",
+          "title",
+          "status",
+          "priority",
+          "createdBy",
+          "updatedBy",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "CreateTaskDto": {
         "type": "object",
         "properties": {
@@ -4744,6 +4947,10 @@
             "items": {
               "type": "object",
               "properties": {
+                "evidenceNumber": {
+                  "type": "number",
+                  "description": "Original evidence marker number in the answer"
+                },
                 "chunkId": {
                   "type": "string"
                 },

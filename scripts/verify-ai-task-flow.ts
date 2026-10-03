@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import 'dotenv/config';
+import { mockVerificationDatabaseUrl } from './mock-verification-database';
 import { DataSource } from 'typeorm';
 import { databaseOptions } from '../src/database/database-options';
 import { ProposalsService } from '../src/modules/ai/proposals.service';
@@ -13,6 +14,8 @@ import { Project, ProjectStatus } from '../src/modules/projects/entities/project
 import { ProjectMember, ProjectRole } from '../src/modules/projects/entities/project-member.entity';
 import { User, SystemRole } from '../src/modules/users/entities/user.entity';
 import { MockLlmProvider } from '../src/modules/ai/llm/mock-llm-provider';
+import { RetrievalService } from '../src/modules/ai/retrieval/retrieval.service';
+import { ContextAssembler } from '../src/modules/ai/context/context-assembler';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 
 async function run() {
@@ -20,12 +23,10 @@ async function run() {
   console.log('  AI TASK GENERATION & REFINEMENT VERIFICATION HARNESS');
   console.log('========================================================================\n');
 
-  const url =
-    process.env.DATABASE_URL ||
-    'postgresql://ai_workspace_test:local_test_only@127.0.0.1:55433/ai_workspace_test';
+  const url = mockVerificationDatabaseUrl();
   const dataSource = new DataSource(databaseOptions(url));
   await dataSource.initialize();
-  console.log('✓ Database connection established on', url);
+  console.log('Database connection established for isolated verification.');
 
   const mockAuditService = { record: async () => {} };
   const mockOutboxService = { emit: async () => {} };
@@ -44,6 +45,8 @@ async function run() {
     mockAuditService as never,
     mockOutboxService as never,
     dataSource,
+    new RetrievalService(dataSource),
+    new ContextAssembler(),
   );
 
   const userRepo = dataSource.getRepository(User);

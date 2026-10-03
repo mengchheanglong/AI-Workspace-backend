@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import 'dotenv/config';
+import { mockVerificationDatabaseUrl } from './mock-verification-database';
 import { DataSource } from 'typeorm';
 import { databaseOptions } from '../src/database/database-options';
 import { Conversation, AiMode } from '../src/modules/ai/entities/conversation.entity';
@@ -23,10 +24,7 @@ async function main() {
   console.log('  MILESTONE P2-02 VERIFICATION: Retrieval, Context & AI Chat');
   console.log('================================================================\n');
 
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error('DATABASE_URL is not set.');
-  }
+  const url = mockVerificationDatabaseUrl();
 
   const dataSource = new DataSource(databaseOptions(url));
   await dataSource.initialize();
