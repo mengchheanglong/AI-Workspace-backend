@@ -74,7 +74,7 @@ describe('ProjectsService', () => {
 
   it('creates project with invited initial members', async () => {
     projectRepo.findOne.mockResolvedValue(null);
-    let capturedManager: { create: jest.Mock; save: jest.Mock; findOne: jest.Mock };
+    let capturedManager!: { create: jest.Mock; save: jest.Mock; findOne: jest.Mock };
     (dataSource.transaction as jest.Mock).mockImplementation(
       async (cb: (manager: unknown) => Promise<unknown>) => {
         capturedManager = {

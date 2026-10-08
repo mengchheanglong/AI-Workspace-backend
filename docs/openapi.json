@@ -3919,6 +3919,10 @@
             "type": "string",
             "example": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
           },
+          "email": {
+            "type": "string",
+            "example": "colleague@example.com"
+          },
           "accessRole": {
             "type": "string",
             "enum": [
@@ -3930,7 +3934,6 @@
           }
         },
         "required": [
-          "userId",
           "accessRole"
         ]
       },
