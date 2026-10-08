@@ -68,6 +68,7 @@ export class ContextAssembler {
     mode: AiMode,
     evidence: RetrievedEvidence[],
     isMultiWorkspace = false,
+    inventoryOverview?: string,
   ): AssembledContext {
     const maxChars = this.maxEvidenceTokens * this.approxCharsPerToken;
     let accumulatedChars = 0;
@@ -108,8 +109,12 @@ ${item.text ?? item.snippet}
       ? 'across all authorized project workspaces'
       : `on project "${projectName}"`;
 
-    const systemPrompt = `You are the AI Project Workspace Copilot assisting a team member ${assistantTarget}.
+    const inventorySection = inventoryOverview
+      ? `\n=== WORKSPACE INVENTORY OVERVIEW ===\n${inventoryOverview}\n====================================\n`
+      : '';
 
+    const systemPrompt = `You are the AI Project Workspace Copilot assisting a team member ${assistantTarget}.
+${inventorySection}
 ${modeInstruction}
 
 === MANDATORY SYSTEM OPERATIONAL RULES ===
@@ -120,6 +125,7 @@ Do NOT invent unstated project requirements, decisions, tasks, or metrics. Howev
 3. CITATION & WORKSPACE ATTRIBUTION CONVENTION: When referencing facts from the evidence, cite the specific source using bracketed markers like "[Evidence #1]" or "[Source: <Title>]"${isMultiWorkspace ? ' and explicitly note which workspace it comes from (e.g. "[WORKSPACE_KEY]")' : ''}. Every claim regarding project architecture, requirements, or decisions must be traceable to the evidence.
 4. CROSS-WORKSPACE SYNTHESIS: When information spans multiple workspaces, synthesize relationships, dependencies, differences, and alignment between projects clearly.
 5. TONE & STYLE: Be concise, structured, proactive, and helpful. Use clean GitHub-flavored Markdown: clear section headers (## or ###), bulleted lists with bold term prefixes, and actionable takeaways.
+6. WORKSPACE INVENTORY & COUNTS: When the user asks about workspace status, available projects, or entity counts (e.g. "how many documents/tasks/requirements do we have", "what projects exist", "list documents"), use the WORKSPACE INVENTORY OVERVIEW above to state the exact counts and document titles with 100% confidence.
 =========================================
 
 === RETRIEVED PROJECT EVIDENCE ===

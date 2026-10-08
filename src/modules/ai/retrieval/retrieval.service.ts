@@ -137,18 +137,103 @@ export class RetrievalService {
     return raw.map((row) => this.mapToEvidence(row, row.score_signal ?? 0));
   }
 
+  private analyzeQuery(query: string): {
+    expandedTsQuery: string;
+    typePreference?: KnowledgeSourceType;
+    topicPatterns: string[];
+  } {
+    const lower = query.toLowerCase().trim();
+    const stopWords = new Set([
+      'how',
+      'many',
+      'we',
+      'currently',
+      'have',
+      'do',
+      'any',
+      'i',
+      'can',
+      'on',
+      'with',
+      'about',
+      'the',
+      'a',
+      'an',
+      'is',
+      'are',
+      'what',
+      'for',
+      'there',
+      'to',
+      'in',
+      'of',
+      'and',
+      'or',
+      'our',
+      'my',
+      'work',
+    ]);
+
+    let typePreference: KnowledgeSourceType | undefined;
+    if (/\b(doc|docs|document|documents)\b/i.test(lower))
+      typePreference = KnowledgeSourceType.DOCUMENT;
+    else if (/\b(task|tasks)\b/i.test(lower)) typePreference = KnowledgeSourceType.TASK;
+    else if (/\b(requirement|requirements|req|reqs)\b/i.test(lower))
+      typePreference = KnowledgeSourceType.REQUIREMENT;
+    else if (/\b(decision|decisions|adr|adrs)\b/i.test(lower))
+      typePreference = KnowledgeSourceType.DECISION;
+    else if (/\b(meeting|meetings)\b/i.test(lower)) typePreference = KnowledgeSourceType.MEETING;
+
+    const rawWords = lower
+      .replace(/[^a-z0-9\s_-]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+    const terms: string[] = [];
+    const topicPatterns: string[] = [];
+
+    for (const w of rawWords) {
+      if (stopWords.has(w)) continue;
+      if (w === 'datawarehouse' || w === 'data-warehouse') {
+        terms.push('datawarehous', 'warehous', 'dwh');
+        topicPatterns.push('%dwh%', '%warehouse%', '%datawarehouse%');
+      } else if (w === 'dwh') {
+        terms.push('dwh', 'warehous');
+        topicPatterns.push('%dwh%', '%warehouse%');
+      } else if (w === 'warehouse') {
+        terms.push('warehous', 'dwh');
+        topicPatterns.push('%warehouse%', '%dwh%');
+      } else if (w === 'docs' || w === 'doc') {
+        terms.push('document');
+      } else {
+        terms.push(w);
+      }
+    }
+
+    const uniqueTerms = Array.from(new Set(terms));
+    const expandedTsQuery = uniqueTerms.length > 0 ? uniqueTerms.join(' | ') : '';
+    return {
+      expandedTsQuery,
+      typePreference,
+      topicPatterns,
+    };
+  }
+
   private async retrieveKeyword(
     projectIds: string[],
     query: string,
     sourceType?: KnowledgeSourceType,
     limit = 8,
   ): Promise<RetrievedEvidence[]> {
+    const analysis = this.analyzeQuery(query);
+    const effectiveType = sourceType ?? analysis.typePreference;
+
     const raw = await this.dataSource.query<RawChunkQueryResult[]>(
       `
       WITH query_terms AS (
         SELECT 
           plainto_tsquery('english', $1) AS ptq,
-          NULLIF(replace(plainto_tsquery('english', $1)::text, '&', '|'), '') AS otq_text
+          NULLIF(replace(plainto_tsquery('english', $1)::text, '&', '|'), '') AS otq_text,
+          to_tsquery('english', NULLIF($6, '')) AS exp_tq
       )
       SELECT 
         c.id,
@@ -164,23 +249,24 @@ export class RetrievalService {
         p.name AS project_name,
         p.key AS project_key,
         (
-          ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.ptq) * 
-          (CASE 
-            WHEN s.source_type IN ('TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT') THEN 4.0 
-            ELSE 1.0 
-          END)
+          COALESCE(ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.ptq), 0) * 2.0
           + CASE 
-              WHEN q.otq_text IS NOT NULL THEN ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), to_tsquery('english', q.otq_text))
-              ELSE 0 
-            END
-          + CASE 
-              WHEN s.title ILIKE $4 THEN 1.0 
-              WHEN c.text ILIKE $4 THEN 0.5 
+              WHEN q.exp_tq IS NOT NULL THEN COALESCE(ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.exp_tq), 0) * 3.0
               ELSE 0.0 
             END
-          + CASE
-              WHEN s.source_type IN ('TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT') THEN 0.5
+          + CASE 
+              WHEN $7::text[] IS NOT NULL AND (s.title ILIKE ANY($7::text[]) OR c.text ILIKE ANY($7::text[])) THEN 15.0
               ELSE 0.0
+            END
+          + CASE 
+              WHEN $3::varchar IS NOT NULL AND s.source_type = $3 THEN 8.0
+              WHEN s.source_type IN ('TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT') THEN 4.0 
+              ELSE 0.1 
+            END
+          + CASE 
+              WHEN s.title ILIKE $4 THEN 2.0 
+              WHEN c.text ILIKE $4 THEN 1.0 
+              ELSE 0.0 
             END
         ) AS score_signal
       FROM knowledge_chunks c
@@ -191,17 +277,26 @@ export class RetrievalService {
         AND s.status = 'INDEXED'
         AND s.deleted_at IS NULL
         AND c.index_version = s.active_index_version
-        AND ($3::varchar IS NULL OR s.source_type = $3)
         AND (
           (q.ptq != ''::tsquery AND to_tsvector('english', s.title || ' ' || c.text) @@ q.ptq)
-          OR (q.otq_text IS NOT NULL AND to_tsvector('english', s.title || ' ' || c.text) @@ to_tsquery('english', q.otq_text))
+          OR (q.exp_tq IS NOT NULL AND to_tsvector('english', s.title || ' ' || c.text) @@ q.exp_tq)
+          OR ($7::text[] IS NOT NULL AND (s.title ILIKE ANY($7::text[]) OR c.text ILIKE ANY($7::text[])))
           OR c.text ILIKE $4
           OR s.title ILIKE $4
+          OR ($3::varchar IS NOT NULL AND s.source_type = $3)
         )
       ORDER BY score_signal DESC, c.id ASC
       LIMIT $5;
       `,
-      [query, projectIds, sourceType ?? null, `%${query}%`, limit],
+      [
+        query,
+        projectIds,
+        effectiveType ?? null,
+        `%${query}%`,
+        limit,
+        analysis.expandedTsQuery,
+        analysis.topicPatterns.length > 0 ? analysis.topicPatterns : null,
+      ],
     );
 
     if (raw.length === 0) {

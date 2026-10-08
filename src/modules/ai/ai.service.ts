@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ProjectMember } from '../projects/entities/project-member.entity';
 import { Project, ProjectStatus } from '../projects/entities/project.entity';
 import { SystemRole, User } from '../users/entities/user.entity';
@@ -179,12 +179,16 @@ export class AiService implements OnModuleInit {
       mode: 'hybrid',
     });
 
+    // Build inventory overview for the target workspaces
+    const inventoryOverview = await this.buildInventoryOverview(targetProjectIds);
+
     // Assemble context
     const assembled = this.contextAssembler.assemble(
       includeAllWorkspaces ? 'All Workspaces' : projectName,
       mode,
       retrievedEvidence,
       includeAllWorkspaces,
+      inventoryOverview,
     );
 
     // Fetch bounded history (up to 10 most recent messages)
@@ -259,5 +263,62 @@ export class AiService implements OnModuleInit {
     await this.messageRepo.save(assistantMessage);
 
     return { userMessage, assistantMessage };
+  }
+
+  private async buildInventoryOverview(projectIds: string[]): Promise<string> {
+    if (!projectIds.length || typeof this.projectRepo?.manager?.query !== 'function') return '';
+    try {
+      const projects = await this.projectRepo.find({
+        where: { id: In(projectIds) },
+        select: ['id', 'key', 'name'],
+      });
+
+      const counts = await this.projectRepo.manager.query<
+        { project_id: string; source_type: string; count: string }[]
+      >(
+        `SELECT project_id, source_type, COUNT(*)::text as count
+         FROM knowledge_sources
+         WHERE project_id = ANY($1::uuid[]) AND deleted_at IS NULL AND status = 'INDEXED'
+         GROUP BY project_id, source_type`,
+        [projectIds],
+      );
+
+      const docs = await this.projectRepo.manager.query<{ project_id: string; title: string }[]>(
+        `SELECT project_id, title
+         FROM documents
+         WHERE project_id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+        [projectIds],
+      );
+
+      const lines: string[] = ['Projects in scope:'];
+      for (const p of projects) {
+        const pCounts = counts.filter((c) => c.project_id === p.id);
+        const pDocs = docs.filter((d) => d.project_id === p.id).map((d) => d.title);
+        const domainCounts = pCounts
+          .filter((c) =>
+            ['TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT'].includes(c.source_type),
+          )
+          .map((c) => `${c.count} ${c.source_type.toLowerCase()}s`)
+          .join(', ');
+        const docStr =
+          pDocs.length > 0 ? ` (Documents: ${pDocs.map((t) => `"${t}"`).join(', ')})` : '';
+        lines.push(
+          `- [${p.key}] "${p.name}": ${domainCounts || 'no active domain records'}${docStr}`,
+        );
+      }
+      const totalDocs = docs.length;
+      lines.push(
+        `Total active documents across scope: ${totalDocs}${
+          totalDocs > 0 ? ` (${docs.map((d) => `"${d.title}"`).join(', ')})` : ''
+        }`,
+      );
+
+      return lines.join('\n');
+    } catch (err) {
+      this.logger.warn(
+        `Could not build inventory overview: ${err instanceof Error ? err.message : 'Unknown'}`,
+      );
+      return '';
+    }
   }
 }
