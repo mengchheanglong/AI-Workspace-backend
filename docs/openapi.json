@@ -3839,6 +3839,28 @@
           }
         }
       },
+      "ProjectInitialMemberDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "example": "85bb1fd2-d5cb-42a1-8d2a-43d96924b17f",
+            "description": "User ID of the member to invite"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "MANAGER",
+              "CONTRIBUTOR",
+              "VIEWER"
+            ],
+            "default": "CONTRIBUTOR"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
       "CreateProjectDto": {
         "type": "object",
         "properties": {
@@ -3856,6 +3878,13 @@
           "description": {
             "type": "string",
             "example": "Central backend workspace for multi-modal project management"
+          },
+          "members": {
+            "description": "Initial workspace members to invite into the project",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectInitialMemberDto"
+            }
           }
         },
         "required": [
