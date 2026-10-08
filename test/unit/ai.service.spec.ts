@@ -14,6 +14,7 @@ import { IngestionService } from '../../src/modules/ingestion/ingestion.service'
 import { KnowledgeSourceType } from '../../src/modules/ingestion/entities';
 import { ProjectMember } from '../../src/modules/projects/entities/project-member.entity';
 import { Project } from '../../src/modules/projects/entities/project.entity';
+import { SystemRole, User } from '../../src/modules/users/entities/user.entity';
 
 describe('AiService', () => {
   let service: AiService;
@@ -31,9 +32,13 @@ describe('AiService', () => {
   };
   let mockProjectRepo: {
     findOne: jest.Mock;
+    find: jest.Mock;
   };
   let mockProjectMemberRepo: {
     find: jest.Mock;
+  };
+  let mockUserRepo: {
+    findOne: jest.Mock;
   };
   let mockRetrievalService: {
     retrieve: jest.Mock;
@@ -72,10 +77,15 @@ describe('AiService', () => {
 
     mockProjectRepo = {
       findOne: jest.fn().mockResolvedValue({ id: mockProjectId, name: 'Test Project' }),
+      find: jest.fn().mockResolvedValue([{ id: mockProjectId }]),
     };
 
     mockProjectMemberRepo = {
       find: jest.fn().mockResolvedValue([{ projectId: mockProjectId }]),
+    };
+
+    mockUserRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: mockUserId, systemRole: SystemRole.USER }),
     };
 
     mockRetrievalService = {
@@ -98,6 +108,7 @@ describe('AiService', () => {
       mockMessageRepo as unknown as Repository<ChatMessage>,
       mockProjectRepo as unknown as Repository<Project>,
       mockProjectMemberRepo as unknown as Repository<ProjectMember>,
+      mockUserRepo as unknown as Repository<User>,
       mockRetrievalService as unknown as RetrievalService,
       contextAssembler,
       mockLlmProvider as unknown as LlmProvider,
@@ -335,6 +346,42 @@ describe('AiService', () => {
       expect(assistantMessage.citations[0]!.projectKey).toBe('P1');
       expect(assistantMessage.citations[1]!.projectName).toBe('Project 2');
       expect(assistantMessage.citations[1]!.projectKey).toBe('P2');
+    });
+
+    it('retrieves evidence across all system projects when user is ADMIN and includeAllWorkspaces is true', async () => {
+      const mockConv = {
+        id: 'conv-admin',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        title: 'Admin Conversation',
+        defaultMode: AiMode.PM,
+        updatedAt: new Date(),
+      };
+      mockConversationRepo.findOne.mockResolvedValue(mockConv);
+      mockUserRepo.findOne.mockResolvedValue({ id: mockUserId, systemRole: SystemRole.ADMIN });
+      mockProjectRepo.find.mockResolvedValue([
+        { id: mockProjectId },
+        { id: 'proj-admin-2' },
+        { id: 'proj-admin-3' },
+      ]);
+      mockRetrievalService.retrieve.mockResolvedValue([]);
+      mockLlmProvider.generateAnswer.mockResolvedValue({
+        content: 'Overview for all 3 projects',
+        citations: [],
+        modelName: 'deepseek-flash',
+      });
+
+      await service.postMessage(mockProjectId, mockUserId, 'conv-admin', {
+        content: 'System wide overview',
+        includeAllWorkspaces: true,
+      });
+
+      expect(mockRetrievalService.retrieve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectIds: [mockProjectId, 'proj-admin-2', 'proj-admin-3'],
+          limit: 12,
+        }),
+      );
     });
   });
 });

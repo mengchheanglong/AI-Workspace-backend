@@ -164,10 +164,23 @@ export class RetrievalService {
         p.name AS project_name,
         p.key AS project_key,
         (
-          ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.ptq) * 2.0
+          ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.ptq) * 
+          (CASE 
+            WHEN s.source_type IN ('TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT') THEN 4.0 
+            ELSE 1.0 
+          END)
           + CASE 
               WHEN q.otq_text IS NOT NULL THEN ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), to_tsquery('english', q.otq_text))
               ELSE 0 
+            END
+          + CASE 
+              WHEN s.title ILIKE $4 THEN 1.0 
+              WHEN c.text ILIKE $4 THEN 0.5 
+              ELSE 0.0 
+            END
+          + CASE
+              WHEN s.source_type IN ('TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT') THEN 0.5
+              ELSE 0.0
             END
         ) AS score_signal
       FROM knowledge_chunks c
@@ -180,7 +193,7 @@ export class RetrievalService {
         AND c.index_version = s.active_index_version
         AND ($3::varchar IS NULL OR s.source_type = $3)
         AND (
-          to_tsvector('english', s.title || ' ' || c.text) @@ q.ptq
+          (q.ptq != ''::tsquery AND to_tsvector('english', s.title || ' ' || c.text) @@ q.ptq)
           OR (q.otq_text IS NOT NULL AND to_tsvector('english', s.title || ' ' || c.text) @@ to_tsquery('english', q.otq_text))
           OR c.text ILIKE $4
           OR s.title ILIKE $4
@@ -190,6 +203,60 @@ export class RetrievalService {
       `,
       [query, projectIds, sourceType ?? null, `%${query}%`, limit],
     );
+
+    if (raw.length === 0) {
+      // Partitioned Fallback: when user query is conversational or keyword match is empty,
+      // retrieve recent active tasks, requirements, decisions, meetings, and documents across all target workspaces.
+      const fallbackRaw: RawChunkQueryResult[] = await this.dataSource.query(
+        `
+        SELECT 
+          ranked.chunk_id AS id,
+          ranked.knowledge_source_id,
+          ranked.chunk_index,
+          ranked.text,
+          ranked.metadata,
+          ranked.token_count,
+          ranked.source_type,
+          ranked.source_id,
+          ranked.title,
+          ranked.source_revision,
+          p.name AS project_name,
+          p.key AS project_key,
+          1.0 AS score_signal
+        FROM (
+          SELECT c.id AS chunk_id, c.knowledge_source_id, c.chunk_index, c.text, c.metadata, c.token_count,
+                 s.source_type, s.source_id, s.title, s.source_revision, s.project_id, s.updated_at,
+                 ROW_NUMBER() OVER(PARTITION BY s.project_id ORDER BY 
+                   CASE 
+                     WHEN s.source_type = 'TASK' THEN 1
+                     WHEN s.source_type = 'REQUIREMENT' THEN 2
+                     WHEN s.source_type = 'DECISION' THEN 3
+                     WHEN s.source_type = 'MEETING' THEN 4
+                     WHEN s.source_type = 'DOCUMENT' THEN 5
+                     ELSE 6
+                   END ASC,
+                   s.updated_at DESC
+                 ) as rn
+          FROM knowledge_chunks c
+          INNER JOIN knowledge_sources s ON s.id = c.knowledge_source_id
+          WHERE s.project_id = ANY($1::uuid[])
+            AND s.status = 'INDEXED'
+            AND s.deleted_at IS NULL
+            AND c.index_version = s.active_index_version
+            AND c.chunk_index = 0
+            AND ($3::varchar IS NULL OR s.source_type = $3)
+            AND s.source_type IN ('TASK', 'REQUIREMENT', 'DECISION', 'MEETING', 'DOCUMENT')
+        ) ranked
+        LEFT JOIN projects p ON p.id = ranked.project_id
+        WHERE ranked.rn <= 4
+        ORDER BY ranked.rn ASC, ranked.updated_at DESC
+        LIMIT $2;
+        `,
+        [projectIds, limit, sourceType ?? null],
+      );
+
+      return fallbackRaw.map((row) => this.mapToEvidence(row, row.score_signal ?? 1.0));
+    }
 
     return raw.map((row) => this.mapToEvidence(row, row.score_signal ?? 0));
   }

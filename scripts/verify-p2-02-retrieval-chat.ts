@@ -68,6 +68,7 @@ async function main() {
       dataSource.getRepository(ChatMessage),
       dataSource.getRepository(Project),
       dataSource.getRepository(ProjectMember),
+      dataSource.getRepository(User),
       retrievalService,
       contextAssembler,
       mockLlmProvider,

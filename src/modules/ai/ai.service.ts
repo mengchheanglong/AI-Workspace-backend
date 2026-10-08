@@ -2,7 +2,8 @@ import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@ne
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { ProjectMember } from '../projects/entities/project-member.entity';
-import { Project } from '../projects/entities/project.entity';
+import { Project, ProjectStatus } from '../projects/entities/project.entity';
+import { SystemRole, User } from '../users/entities/user.entity';
 import { ContextAssembler } from './context/context-assembler';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { PostMessageDto } from './dto/post-message.dto';
@@ -30,6 +31,8 @@ export class AiService implements OnModuleInit {
     private readonly projectRepo: Repository<Project>,
     @InjectRepository(ProjectMember)
     private readonly projectMemberRepo: Repository<ProjectMember>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly retrievalService: RetrievalService,
     private readonly contextAssembler: ContextAssembler,
     @Inject('LLM_PROVIDER')
@@ -147,13 +150,22 @@ export class AiService implements OnModuleInit {
     const includeAllWorkspaces = !!dto.includeAllWorkspaces;
     let targetProjectIds = [projectId];
     if (includeAllWorkspaces) {
-      const activeMemberships = await this.projectMemberRepo.find({
-        where: { userId, removedAt: IsNull() },
-        select: ['projectId'],
-      });
-      targetProjectIds = Array.from(
-        new Set([projectId, ...activeMemberships.map((m) => m.projectId)]),
-      );
+      const user = await this.userRepo.findOne({ where: { id: userId } });
+      if (user?.systemRole === SystemRole.ADMIN) {
+        const allActiveProjects = await this.projectRepo.find({
+          where: { status: ProjectStatus.ACTIVE },
+          select: ['id'],
+        });
+        targetProjectIds = allActiveProjects.map((p) => p.id);
+      } else {
+        const activeMemberships = await this.projectMemberRepo.find({
+          where: { userId, removedAt: IsNull() },
+          select: ['projectId'],
+        });
+        targetProjectIds = Array.from(
+          new Set([projectId, ...activeMemberships.map((m) => m.projectId)]),
+        );
+      }
     }
 
     // Retrieve evidence
