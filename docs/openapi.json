@@ -1039,6 +1039,15 @@
             }
           },
           {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "priority",
             "required": false,
             "in": "query",
@@ -1755,6 +1764,15 @@
                 "CANCELLED",
                 "BLOCKED"
               ]
+            }
+          },
+          {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by project ID",
+            "schema": {
+              "type": "string"
             }
           },
           {
