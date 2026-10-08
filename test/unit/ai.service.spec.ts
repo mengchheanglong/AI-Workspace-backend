@@ -12,6 +12,7 @@ import {
 } from '../../src/modules/ai/retrieval/retrieval.service';
 import { IngestionService } from '../../src/modules/ingestion/ingestion.service';
 import { KnowledgeSourceType } from '../../src/modules/ingestion/entities';
+import { ProjectMember } from '../../src/modules/projects/entities/project-member.entity';
 import { Project } from '../../src/modules/projects/entities/project.entity';
 
 describe('AiService', () => {
@@ -30,6 +31,9 @@ describe('AiService', () => {
   };
   let mockProjectRepo: {
     findOne: jest.Mock;
+  };
+  let mockProjectMemberRepo: {
+    find: jest.Mock;
   };
   let mockRetrievalService: {
     retrieve: jest.Mock;
@@ -70,6 +74,10 @@ describe('AiService', () => {
       findOne: jest.fn().mockResolvedValue({ id: mockProjectId, name: 'Test Project' }),
     };
 
+    mockProjectMemberRepo = {
+      find: jest.fn().mockResolvedValue([{ projectId: mockProjectId }]),
+    };
+
     mockRetrievalService = {
       retrieve: jest.fn().mockResolvedValue([]),
       setEmbeddingProvider: jest.fn(),
@@ -89,6 +97,7 @@ describe('AiService', () => {
       mockConversationRepo as unknown as Repository<Conversation>,
       mockMessageRepo as unknown as Repository<ChatMessage>,
       mockProjectRepo as unknown as Repository<Project>,
+      mockProjectMemberRepo as unknown as Repository<ProjectMember>,
       mockRetrievalService as unknown as RetrievalService,
       contextAssembler,
       mockLlmProvider as unknown as LlmProvider,
@@ -242,6 +251,90 @@ describe('AiService', () => {
 
       expect(assistantMessage.status).toBe(MessageStatus.FAILED);
       expect(assistantMessage.content).toContain('An error occurred while generating the response');
+    });
+
+    it('retrieves evidence across multiple workspaces and attaches project metadata to citations when includeAllWorkspaces is true', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        projectId: mockProjectId,
+        userId: mockUserId,
+        title: 'New Conversation',
+        defaultMode: AiMode.PM,
+        updatedAt: new Date(),
+      };
+      mockConversationRepo.findOne.mockResolvedValue(mockConv);
+      mockProjectMemberRepo.find.mockResolvedValue([
+        { projectId: mockProjectId },
+        { projectId: 'proj-2222-2222' },
+      ]);
+
+      const multiEvidence: RetrievedEvidence[] = [
+        {
+          chunkId: 'chunk-p1',
+          sourceId: 'src-1',
+          sourceType: KnowledgeSourceType.REQUIREMENT,
+          title: 'Project 1 Spec',
+          revision: 1,
+          locator: 'Chunk #1',
+          snippet: 'Spec for project 1',
+          projectName: 'Project 1',
+          projectKey: 'P1',
+          score: 0.9,
+        },
+        {
+          chunkId: 'chunk-p2',
+          sourceId: 'src-2',
+          sourceType: KnowledgeSourceType.DOCUMENT,
+          title: 'Project 2 Architecture',
+          revision: 1,
+          locator: 'Chunk #2',
+          snippet: 'Architecture for project 2',
+          projectName: 'Project 2',
+          projectKey: 'P2',
+          score: 0.85,
+        },
+      ];
+      mockRetrievalService.retrieve.mockResolvedValue(multiEvidence);
+
+      mockLlmProvider.generateAnswer.mockResolvedValue({
+        content: 'Cross project summary citing both. [Evidence #1] [Evidence #2]',
+        citations: [
+          {
+            chunkId: 'chunk-p1',
+            sourceId: 'src-1',
+            sourceType: KnowledgeSourceType.REQUIREMENT,
+            title: 'Project 1 Spec',
+            revision: 1,
+          },
+          {
+            chunkId: 'chunk-p2',
+            sourceId: 'src-2',
+            sourceType: KnowledgeSourceType.DOCUMENT,
+            title: 'Project 2 Architecture',
+            revision: 1,
+          },
+        ],
+        modelName: 'deepseek-flash',
+        promptTokens: 150,
+        completionTokens: 80,
+      });
+
+      const { assistantMessage } = await service.postMessage(mockProjectId, mockUserId, 'conv-1', {
+        content: 'Compare both projects',
+        includeAllWorkspaces: true,
+      });
+
+      expect(mockRetrievalService.retrieve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectIds: [mockProjectId, 'proj-2222-2222'],
+          limit: 12,
+        }),
+      );
+      expect(assistantMessage.citations).toHaveLength(2);
+      expect(assistantMessage.citations[0]!.projectName).toBe('Project 1');
+      expect(assistantMessage.citations[0]!.projectKey).toBe('P1');
+      expect(assistantMessage.citations[1]!.projectName).toBe('Project 2');
+      expect(assistantMessage.citations[1]!.projectKey).toBe('P2');
     });
   });
 });

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { ProjectMember } from '../projects/entities/project-member.entity';
 import { Project } from '../projects/entities/project.entity';
 import { ContextAssembler } from './context/context-assembler';
 import { CreateConversationDto } from './dto/create-conversation.dto';
@@ -27,6 +28,8 @@ export class AiService implements OnModuleInit {
     private readonly messageRepo: Repository<ChatMessage>,
     @InjectRepository(Project)
     private readonly projectRepo: Repository<Project>,
+    @InjectRepository(ProjectMember)
+    private readonly projectMemberRepo: Repository<ProjectMember>,
     private readonly retrievalService: RetrievalService,
     private readonly contextAssembler: ContextAssembler,
     @Inject('LLM_PROVIDER')
@@ -140,18 +143,37 @@ export class AiService implements OnModuleInit {
     conversation.updatedAt = new Date();
     await this.conversationRepo.save(conversation);
 
+    // Determine target project scope
+    const includeAllWorkspaces = !!dto.includeAllWorkspaces;
+    let targetProjectIds = [projectId];
+    if (includeAllWorkspaces) {
+      const activeMemberships = await this.projectMemberRepo.find({
+        where: { userId, removedAt: IsNull() },
+        select: ['projectId'],
+      });
+      targetProjectIds = Array.from(
+        new Set([projectId, ...activeMemberships.map((m) => m.projectId)]),
+      );
+    }
+
     // Retrieve evidence
     const retrievedEvidence = await this.retrievalService.retrieve({
       actorId: userId,
       projectId,
+      projectIds: targetProjectIds,
       query: dto.content,
       filters: dto.sourceType ? { sourceType: dto.sourceType } : undefined,
-      limit: 8,
+      limit: includeAllWorkspaces ? 12 : 8,
       mode: 'hybrid',
     });
 
     // Assemble context
-    const assembled = this.contextAssembler.assemble(projectName, mode, retrievedEvidence);
+    const assembled = this.contextAssembler.assemble(
+      includeAllWorkspaces ? 'All Workspaces' : projectName,
+      mode,
+      retrievedEvidence,
+      includeAllWorkspaces,
+    );
 
     // Fetch bounded history (up to 10 most recent messages)
     const recentMessages = await this.messageRepo.find({
@@ -196,14 +218,19 @@ export class AiService implements OnModuleInit {
     }
 
     // Validate citations: must correspond strictly to retrieved evidence
-    const validChunkIds = new Set(assembled.evidenceItems.map((e) => e.chunkId));
+    const evidenceByChunkId = new Map(assembled.evidenceItems.map((e) => [e.chunkId, e]));
     const validatedCitations: CitationItem[] = (generateResult.citations || [])
-      .filter((citation) => validChunkIds.has(citation.chunkId))
-      .map((citation) => ({
-        ...citation,
-        evidenceNumber:
-          assembled.evidenceItems.findIndex((item) => item.chunkId === citation.chunkId) + 1,
-      }));
+      .filter((citation) => evidenceByChunkId.has(citation.chunkId))
+      .map((citation) => {
+        const matched = evidenceByChunkId.get(citation.chunkId);
+        return {
+          ...citation,
+          evidenceNumber:
+            assembled.evidenceItems.findIndex((item) => item.chunkId === citation.chunkId) + 1,
+          projectName: matched?.projectName ?? citation.projectName,
+          projectKey: matched?.projectKey ?? citation.projectKey,
+        };
+      });
 
     const assistantMessage = this.messageRepo.create({
       conversationId: conversation.id,

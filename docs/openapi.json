@@ -5092,6 +5092,11 @@
               "GITHUB_PR",
               "GITHUB_CODE"
             ]
+          },
+          "includeAllWorkspaces": {
+            "type": "boolean",
+            "description": "Whether to retrieve and share context across all workspaces the user has access to",
+            "default": false
           }
         },
         "required": [

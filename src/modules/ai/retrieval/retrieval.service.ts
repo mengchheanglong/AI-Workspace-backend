@@ -5,7 +5,8 @@ import { KnowledgeSourceType } from '../../ingestion/entities';
 
 export interface RetrieveParams {
   actorId: string;
-  projectId: string;
+  projectId?: string;
+  projectIds?: string[];
   query: string;
   filters?: {
     sourceType?: KnowledgeSourceType;
@@ -22,6 +23,8 @@ export interface RetrievedEvidence {
   revision: number;
   locator: string;
   snippet: string;
+  projectName?: string;
+  projectKey?: string;
   /** Full permitted chunk for model context; snippets remain compact for search/citations. */
   text?: string;
   score: number;
@@ -38,6 +41,8 @@ interface RawChunkQueryResult {
   source_id: string;
   title: string;
   source_revision: number;
+  project_name?: string;
+  project_key?: string;
   score_signal?: number;
 }
 
@@ -53,28 +58,35 @@ export class RetrievalService {
   }
 
   async retrieve(params: RetrieveParams): Promise<RetrievedEvidence[]> {
-    const { projectId, query, filters, limit = 8, mode = 'hybrid' } = params;
+    const { projectId, projectIds, query, filters, limit = 8, mode = 'hybrid' } = params;
 
     if (!query || !query.trim()) {
+      return [];
+    }
+
+    const targetProjectIds =
+      projectIds && projectIds.length > 0 ? projectIds : projectId ? [projectId] : [];
+
+    if (targetProjectIds.length === 0) {
       return [];
     }
 
     const trimmedQuery = query.trim();
 
     if (mode === 'keyword') {
-      return this.retrieveKeyword(projectId, trimmedQuery, filters?.sourceType, limit);
+      return this.retrieveKeyword(targetProjectIds, trimmedQuery, filters?.sourceType, limit);
     }
 
     if (mode === 'semantic') {
-      return this.retrieveSemantic(projectId, trimmedQuery, filters?.sourceType, limit);
+      return this.retrieveSemantic(targetProjectIds, trimmedQuery, filters?.sourceType, limit);
     }
 
     // Hybrid mode (Dense Vector + Sparse Keyword via Reciprocal Rank Fusion)
-    return this.retrieveHybrid(projectId, trimmedQuery, filters?.sourceType, limit);
+    return this.retrieveHybrid(targetProjectIds, trimmedQuery, filters?.sourceType, limit);
   }
 
   private async retrieveSemantic(
-    projectId: string,
+    projectIds: string[],
     query: string,
     sourceType?: KnowledgeSourceType,
     limit = 8,
@@ -103,10 +115,13 @@ export class RetrievalService {
         s.source_id,
         s.title,
         s.source_revision,
+        p.name AS project_name,
+        p.key AS project_key,
         (1 - (c.embedding <=> $1::vector)) AS score_signal
       FROM knowledge_chunks c
       INNER JOIN knowledge_sources s ON s.id = c.knowledge_source_id
-      WHERE s.project_id = $2
+      LEFT JOIN projects p ON p.id = s.project_id
+      WHERE s.project_id = ANY($2::uuid[])
         AND s.status = 'INDEXED'
         AND s.deleted_at IS NULL
         AND c.index_version = s.active_index_version
@@ -116,14 +131,14 @@ export class RetrievalService {
       ORDER BY c.embedding <=> $1::vector ASC
       LIMIT $4;
       `,
-      [vectorParam, projectId, sourceType ?? null, limit, this.embeddingProvider.modelName],
+      [vectorParam, projectIds, sourceType ?? null, limit, this.embeddingProvider.modelName],
     );
 
     return raw.map((row) => this.mapToEvidence(row, row.score_signal ?? 0));
   }
 
   private async retrieveKeyword(
-    projectId: string,
+    projectIds: string[],
     query: string,
     sourceType?: KnowledgeSourceType,
     limit = 8,
@@ -146,6 +161,8 @@ export class RetrievalService {
         s.source_id,
         s.title,
         s.source_revision,
+        p.name AS project_name,
+        p.key AS project_key,
         (
           ts_rank_cd(to_tsvector('english', s.title || ' ' || c.text), q.ptq) * 2.0
           + CASE 
@@ -155,8 +172,9 @@ export class RetrievalService {
         ) AS score_signal
       FROM knowledge_chunks c
       INNER JOIN knowledge_sources s ON s.id = c.knowledge_source_id
+      LEFT JOIN projects p ON p.id = s.project_id
       CROSS JOIN query_terms q
-      WHERE s.project_id = $2
+      WHERE s.project_id = ANY($2::uuid[])
         AND s.status = 'INDEXED'
         AND s.deleted_at IS NULL
         AND c.index_version = s.active_index_version
@@ -170,24 +188,24 @@ export class RetrievalService {
       ORDER BY score_signal DESC, c.id ASC
       LIMIT $5;
       `,
-      [query, projectId, sourceType ?? null, `%${query}%`, limit],
+      [query, projectIds, sourceType ?? null, `%${query}%`, limit],
     );
 
     return raw.map((row) => this.mapToEvidence(row, row.score_signal ?? 0));
   }
 
   private async retrieveHybrid(
-    projectId: string,
+    projectIds: string[],
     query: string,
     sourceType?: KnowledgeSourceType,
     limit = 8,
   ): Promise<RetrievedEvidence[]> {
-    if (!this.embeddingProvider) return this.retrieveKeyword(projectId, query, sourceType, limit);
+    if (!this.embeddingProvider) return this.retrieveKeyword(projectIds, query, sourceType, limit);
     const candidateLimit = Math.max(limit * 2, 20);
 
     const [semanticCandidates, keywordCandidates] = await Promise.all([
-      this.retrieveSemantic(projectId, query, sourceType, candidateLimit),
-      this.retrieveKeyword(projectId, query, sourceType, candidateLimit),
+      this.retrieveSemantic(projectIds, query, sourceType, candidateLimit),
+      this.retrieveKeyword(projectIds, query, sourceType, candidateLimit),
     ]);
 
     // Reciprocal Rank Fusion (RRF) with k = 60
@@ -252,6 +270,8 @@ export class RetrievalService {
       sourceType: row.source_type,
       title: row.title,
       revision: row.source_revision,
+      projectName: row.project_name,
+      projectKey: row.project_key,
       locator,
       snippet,
       text: row.text,

@@ -63,7 +63,12 @@ export class ContextAssembler {
   private readonly maxEvidenceTokens = 4000;
   private readonly approxCharsPerToken = 4;
 
-  assemble(projectName: string, mode: AiMode, evidence: RetrievedEvidence[]): AssembledContext {
+  assemble(
+    projectName: string,
+    mode: AiMode,
+    evidence: RetrievedEvidence[],
+    isMultiWorkspace = false,
+  ): AssembledContext {
     const maxChars = this.maxEvidenceTokens * this.approxCharsPerToken;
     let accumulatedChars = 0;
     const includedEvidence: RetrievedEvidence[] = [];
@@ -72,8 +77,11 @@ export class ContextAssembler {
 
     for (let i = 0; i < evidence.length; i++) {
       const item = evidence[i]!;
+      const workspaceLine = item.projectName
+        ? `Workspace: [${item.projectKey || 'PROJECT'}] ${item.projectName}\n`
+        : '';
       const block = `[Evidence #${i + 1}]
-Source Type: ${item.sourceType}
+${workspaceLine}Source Type: ${item.sourceType}
 Title: ${item.title} (Revision: ${item.revision})
 Locator: ${item.locator}
 Content:
@@ -96,7 +104,11 @@ ${item.text ?? item.snippet}
 
     const modeInstruction = MODE_INSTRUCTIONS[mode] || MODE_INSTRUCTIONS[AiMode.PM];
 
-    const systemPrompt = `You are the AI Project Workspace Copilot assisting a team member on project "${projectName}".
+    const assistantTarget = isMultiWorkspace
+      ? 'across all authorized project workspaces'
+      : `on project "${projectName}"`;
+
+    const systemPrompt = `You are the AI Project Workspace Copilot assisting a team member ${assistantTarget}.
 
 ${modeInstruction}
 
@@ -105,8 +117,9 @@ ${modeInstruction}
 2. GROUNDING & FACTUAL ACCURACY: Base all claims regarding project specifications, requirements, decisions, architecture, and recorded data strictly on the provided project evidence. If the provided evidence is missing, insufficient, or inconclusive to answer a project-specific factual question, state clearly and honestly:
 "Based on the current project knowledge, there is insufficient evidence to answer this question."
 Do NOT invent unstated project requirements, decisions, tasks, or metrics. However, do NOT lecture the user about your system rules or provide repetitive meta-disclaimers; instead, proactively offer constructive, actionable guidance and practical next steps aligned with your active mode (clearly distinguishing general engineering recommendations from recorded project facts).
-3. CITATION CONVENTION: When referencing facts from the evidence, cite the specific source using bracketed markers like "[Evidence #1]" or "[Source: <Title>]". Every claim regarding project architecture, requirements, or decisions must be traceable to the evidence.
-4. TONE & STYLE: Be concise, structured, proactive, and helpful. Use clean GitHub-flavored Markdown: clear section headers (## or ###), bulleted lists with bold term prefixes, and actionable takeaways.
+3. CITATION & WORKSPACE ATTRIBUTION CONVENTION: When referencing facts from the evidence, cite the specific source using bracketed markers like "[Evidence #1]" or "[Source: <Title>]"${isMultiWorkspace ? ' and explicitly note which workspace it comes from (e.g. "[WORKSPACE_KEY]")' : ''}. Every claim regarding project architecture, requirements, or decisions must be traceable to the evidence.
+4. CROSS-WORKSPACE SYNTHESIS: When information spans multiple workspaces, synthesize relationships, dependencies, differences, and alignment between projects clearly.
+5. TONE & STYLE: Be concise, structured, proactive, and helpful. Use clean GitHub-flavored Markdown: clear section headers (## or ###), bulleted lists with bold term prefixes, and actionable takeaways.
 =========================================
 
 === RETRIEVED PROJECT EVIDENCE ===
