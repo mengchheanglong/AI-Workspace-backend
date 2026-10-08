@@ -313,7 +313,8 @@ export class RetrievalService {
     return ranked;
   }
 
-  private mapToEvidence(row: RawChunkQueryResult, score: number): RetrievedEvidence {
+  private mapToEvidence(row: RawChunkQueryResult, score: number | string): RetrievedEvidence {
+    const numScore = Number(score) || 0;
     let locator = `Chunk #${row.chunk_index + 1}`;
     if (row.metadata) {
       const meta = row.metadata;
@@ -342,7 +343,7 @@ export class RetrievalService {
       locator,
       snippet,
       text: row.text,
-      score: Number(score.toFixed(6)),
+      score: Number(numScore.toFixed(6)),
     };
   }
 }

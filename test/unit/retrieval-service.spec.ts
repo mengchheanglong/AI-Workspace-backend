@@ -160,7 +160,7 @@ describe('RetrievalService', () => {
           source_id: 'task-1',
           title: 'Implement Kanban Board',
           source_revision: 1,
-          score_signal: 1.0,
+          score_signal: '1.0' as unknown as number, // test string numeric coercion from pg driver
         },
       ]);
 
